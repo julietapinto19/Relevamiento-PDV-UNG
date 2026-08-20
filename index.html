@@ -177,7 +177,19 @@
       };})(bs[i]);
     }
   }
+  var saveT=null;
+  function autosave(){
+    if(!cur) return;
+    if(saveT) clearTimeout(saveT);
+    saveT = setTimeout(function(){
+      cur && dbPut(cur).then(function(ok){
+        if(!ok) say('No se pudo guardar este PDV en el celular. Cerralo con siguiente o generá el PDF para no perderlo.','sys');
+      });
+    }, 400);
+  }
+
   function counters(){
+    autosave();
     var n=0; for(var i=0;i<visitas.length;i++) n += nreg(visitas[i]);
     if(cur) n += nreg(cur);
     $('c-pdv').textContent = visitas.length + (cur?1:0);
@@ -260,7 +272,7 @@
   /* ===================== flujo ===================== */
   function abrirPDV(code){
     code = String(code).trim().toUpperCase();
-    cur = { id:idVisita(), pdv:code, vendedor:'', vendedorNom:'', items:[], resp:{} };
+    cur = { id:idVisita(), pdv:code, vendedor:'', vendedorNom:'', items:[], resp:{}, abierto:true };
     step = 'vendedor'; counters();
     say('<b>PDV '+esc(code)+'</b> abierto. ¿Código de vendedor?');
     chips([]);
@@ -487,7 +499,7 @@
   /* ===================== cierre ===================== */
   function cerrarPDV(){
     if(!nreg(cur)) return say('Este PDV no tiene ningún registro. Cargá algo primero.');
-    var v=cur; visitas.push(v); cur=null; step='pdv'; chk=null; counters();
+    var v=cur; v.abierto=false; visitas.push(v); cur=null; step='pdv'; chk=null; counters();
     dbPut(v).then(function(ok){
       say('PDV '+esc(v.pdv)+' cerrado'+(ok?' y guardado.':'. Ojo: no se pudo guardar.')+'\n¿Código del próximo PDV?');
     });
@@ -495,7 +507,7 @@
   }
   function cerrarTodo(){
     var p=Promise.resolve();
-    if(cur && nreg(cur)){ var v=cur; visitas.push(v); cur=null; step='pdv'; chk=null; p=dbPut(v); }
+    if(cur && nreg(cur)){ var v=cur; v.abierto=false; visitas.push(v); cur=null; step='pdv'; chk=null; p=dbPut(v); }
     if(!visitas.length) return say('No hay ningún PDV cargado.');
     counters();
     p.then(function(){
@@ -628,10 +640,6 @@
         }
       }
 
-      space(30); y+=6; rule(y); y+=12;
-      doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(102,117,124);
-      doc.text('Firma del vendedor',M,y+12); doc.text('Aclaracion y fecha',M+TW/2,y+12);
-      doc.setDrawColor(14,26,31); doc.line(M,y+9,M+62,y+9); doc.line(M+TW/2,y+9,M+TW/2+62,y+9);
     }
 
     var np=doc.internal.getNumberOfPages();
@@ -650,6 +658,7 @@
 
     if(ultimo){
       dbClear().then(function(){
+        if(saveT){ clearTimeout(saveT); saveT=null; }
         visitas=[]; cur=null; step='pdv'; queue=[]; chk=null; stage(); counters();
         say('Recorrido liberado. Guardá los PDF antes de cerrar la página.','sys');
         say('Listo para arrancar. Escribí el código de PDV.');
@@ -660,16 +669,28 @@
 
   /* ===================== arranque ===================== */
   openDB().then(function(){ return dbAll(); }).then(function(prev){
-    step='pdv'; queue=[]; stage();
+    step='pdv'; queue=[];
     if(prev && prev.length){
       prev.sort(function(a,b){ return a.id.localeCompare(b.id); });
-      visitas=prev; counters();
-      say('Recuperé un recorrido sin cerrar:\n'+prev.map(function(v){ return '· PDV '+esc(v.pdv)+' — '+nreg(v)+' reg.'; }).join('\n'),'sys');
-      say('Seguí cargando o '+cmd('cerrar')+' para generar el PDF.');
-      chips(['cerrar','ver']);
+      visitas=[]; cur=null;
+      for(var i=0;i<prev.length;i++){
+        if(prev[i].abierto && !cur) cur=prev[i]; else visitas.push(prev[i]);
+      }
+      stage(); counters();
+      var l=visitas.map(function(v){ return '· PDV '+esc(v.pdv)+' — '+nreg(v)+' reg.'; }).join('\n');
+      say('Recuperé un recorrido sin cerrar:'+(l?'\n'+l:'')+
+          (cur?'\n· PDV '+esc(cur.pdv)+' — '+nreg(cur)+' reg. (quedó abierto)':''),'sys');
+      if(cur){
+        step = cur.vendedor ? 'carga' : 'vendedor';
+        if(step==='vendedor'){ say('Seguimos con el <b>PDV '+esc(cur.pdv)+'</b>. ¿Código de vendedor?'); chips([]); }
+        else { say('Seguimos con el <b>PDV '+esc(cur.pdv)+'</b>. Cargá lo que falte, o '+cmd('siguiente')+' para pasar al próximo.'); menu(); }
+      } else {
+        say('Seguí cargando o '+cmd('cerrar')+' para generar el PDF.');
+        chips(['cerrar','ver']);
+      }
       return;
     }
-    counters();
+    stage(); counters();
     say('Arrancamos el recorrido.\nEscribí el <b>código de PDV</b> para empezar.\n'+cmd('ayuda')+' para ver los comandos.');
     chips([]);
   });
