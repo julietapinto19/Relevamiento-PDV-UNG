@@ -198,6 +198,77 @@
   }
   function nreg(v){ return v.items.length + Object.keys(v.resp||{}).length; }
 
+  /* ===================== Drive ===================== */
+  var DRIVE_KEY='relevamiento_drive_url';
+  function driveURL(){ try{ return localStorage.getItem(DRIVE_KEY)||''; }catch(e){ return ''; } }
+  function setDriveURL(u){ try{ localStorage.setItem(DRIVE_KEY,u); return true; }catch(e){ return false; } }
+
+  function configurar(txt){
+    if(!txt){
+      step='config';
+      say('<b>Conectar con Drive</b>\nPegá la URL de tu aplicación web de Apps Script.\nTermina en <b>/exec</b>.\n\nEscribí '+cmd('cancelar')+' para salir'+(driveURL()?', o '+cmd('desconectar')+' para borrar la actual.':'.'),'sys');
+      chips(driveURL()?['cancelar','desconectar']:['cancelar']);
+      return;
+    }
+    var u=txt.trim();
+    if(u.indexOf('https://script.google.com/')!==0 || u.indexOf('/exec')<0){
+      say('Esa no parece la URL correcta. Tiene que empezar con https://script.google.com/ y terminar en /exec.','sys');
+      return;
+    }
+    say('Probando la conexión…','sys');
+    fetch(u).then(function(r){ return r.json(); }).then(function(d){
+      setDriveURL(u); step='pdv';
+      say('<b>Drive conectado.</b>\n'+esc(d.mensaje||'')+'\nAl cerrar un recorrido te voy a ofrecer subirlo.');
+      chips([]);
+    })['catch'](function(){
+      setDriveURL(u); step='pdv';
+      say('Guardé la URL, pero no pude confirmar la conexión desde acá. Probala igual al cerrar el próximo recorrido.','sys');
+      chips([]);
+    });
+  }
+
+  /** sube un recorrido: PDF + filas de planilla */
+  function subirDrive(lista, vendedor, blob, nombre){
+    var u=driveURL();
+    if(!u) return;
+    var el=say('Subiendo a Drive…','sys');
+    var fr=new FileReader();
+    fr.onload=function(){
+      var b64=String(fr.result).split(',')[1];
+      var d=new Date();
+      var payload={
+        vendedor: vendedor||'SIN-VENDEDOR',
+        pdfNombre: nombre,
+        pdf: b64,
+        visitas: lista.map(function(v){
+          var f=0; for(var i=0;i<v.items.length;i++) if(v.items[i].t==='foto') f++;
+          var notas=v.items.filter(function(i){ return i.t==='nota'; }).map(function(i){ return i.text; }).join(' · ');
+          var r=JSON.parse(JSON.stringify(v.resp||{}));
+          if(notas){ r.probl = r.probl||{val:'',com:''}; r.probl.val = (r.probl.val?r.probl.val+' · ':'')+notas; }
+          return {
+            id:v.id, pdv:v.pdv, vendedor:v.vendedor,
+            fecha: d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()),
+            hora: pad(d.getHours())+':'+pad(d.getMinutes()),
+            resp:r, cantFotos:f
+          };
+        })
+      };
+      fetch(u,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)})
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+          if(res && res.ok){
+            el.querySelector('.bub').innerHTML='Subido a Drive · '+res.filas+' PDV en la planilla'+
+              (res.pdf?'\n<a class="dl" href="'+res.pdf+'" target="_blank" rel="noopener">Ver PDF en Drive</a>':'');
+          } else {
+            el.querySelector('.bub').innerHTML='Drive rechazó la subida'+(res&&res.error?': '+esc(res.error):'')+'. El PDF ya está descargado igual.';
+          }
+        })['catch'](function(){
+          el.querySelector('.bub').innerHTML='No pude confirmar la subida (puede haberse guardado igual). Revisá tu carpeta de Drive; el PDF ya lo tenés descargado.';
+        });
+    };
+    fr.readAsDataURL(blob);
+  }
+
   /* ===================== IndexedDB ===================== */
   var DB=null;
   function openDB(){ return new Promise(function(res){
@@ -286,7 +357,14 @@
     var t=raw.toLowerCase().trim();
     if(/^(ayuda|help|comandos)$/.test(t)) return help();
     if(/^(ver|estado)$/.test(t)) return ver();
+    if(/^(configurar|drive|conectar)$/.test(t) && step!=='config') return configurar('');
+    if(/^desconectar$/.test(t) && step!=='config'){ setDriveURL(''); return say('Drive desconectado. Los PDF se siguen generando en el celular.','sys'); }
 
+    if(step==='config'){
+      if(/^(cancelar|salir)$/.test(t)){ step='pdv'; say('Listo, nada cambió.','sys'); chips([]); return; }
+      if(/^desconectar$/.test(t)){ setDriveURL(''); step='pdv'; say('Drive desconectado.','sys'); chips([]); return; }
+      return configurar(raw);
+    }
     if(step==='pdv'){
       var code=raw.replace(/^pdv\s*/i,'').trim();
       if(!code) return say('Necesito el código de PDV.');
@@ -316,7 +394,7 @@
 
   function help(){
     say('<b>Comandos</b>\n'+cmd('checklist')+' — relevamiento completo\nBloque suelto: '+BLOQUES.map(function(b){return b.cmd}).join(' · ')+
-        '\n'+cmd('editar')+' — corregir una respuesta ya cargada\n'+cmd('siguiente')+' — cerrar este PDV y abrir otro\n'+cmd('cerrar')+' — terminar el recorrido y generar el PDF\n'+cmd('deshacer')+' — borrar el último registro\n'+cmd('ver')+' — qué llevás cargado\n\nDentro del checklist: '+cmd('atrás')+', '+cmd('saltar')+', '+cmd('saltar bloque')+', '+cmd('salir')+'.\nTodo lo demás queda como nota.');
+        '\n'+cmd('configurar')+' — conectar con tu carpeta de Drive\n'+cmd('editar')+' — corregir una respuesta ya cargada\n'+cmd('siguiente')+' — cerrar este PDV y abrir otro\n'+cmd('cerrar')+' — terminar el recorrido y generar el PDF\n'+cmd('deshacer')+' — borrar el último registro\n'+cmd('ver')+' — qué llevás cargado\n\nDentro del checklist: '+cmd('atrás')+', '+cmd('saltar')+', '+cmd('saltar bloque')+', '+cmd('salir')+'.\nTodo lo demás queda como nota.');
   }
   function ver(){
     if(!visitas.length && !cur) return say('Todavía no cargaste nada.');
@@ -653,14 +731,16 @@
     var d=new Date();
     var stamp=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
     var name=(vendedor? vendedor+'_'+stamp : 'Recorrido_'+stamp)+'.pdf';
-    var url=URL.createObjectURL(doc.output('blob'));
+    var blob=doc.output('blob');
+    var url=URL.createObjectURL(blob);
     say('<b>'+(vendedor?esc(vendedor):'Recorrido completo')+'</b> · '+lista.length+' PDV\n<a class="dl" href="'+url+'" download="'+name+'" target="_blank" rel="noopener">Abrir / descargar</a>');
+    if(driveURL()) subirDrive(lista, vendedor, blob, name);
 
     if(ultimo){
       dbClear().then(function(){
         if(saveT){ clearTimeout(saveT); saveT=null; }
         visitas=[]; cur=null; step='pdv'; queue=[]; chk=null; stage(); counters();
-        say('Recorrido liberado. Guardá los PDF antes de cerrar la página.','sys');
+        say(driveURL()?'Recorrido liberado. Ya quedó en tu Drive.':'Recorrido liberado. Guardá los PDF antes de cerrar la página.','sys');
         say('Listo para arrancar. Escribí el código de PDV.');
         chips([]);
       });
