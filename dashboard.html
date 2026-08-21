@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard de Relevamiento — REL UNG</title>
+<meta name="theme-color" content="#0E1A1F">
+<style>
+  :root{
+    --teal:#04799b; --teal-lt:#349dc0; --teal-pale:#E4F2F6;
+    --ink:#0E1A1F; --paper:#EDF0F1; --card:#fff;
+    --steel:#66757C; --line:#D6DCDE;
+    --red:#B3261E; --red-pale:#FBECEB;
+    --amber:#B87709; --amber-pale:#FBF1DC;
+    --green:#1E7A55; --green-pale:#E6F2ED;
+    --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--paper);color:var(--ink);line-height:1.45;-webkit-font-smoothing:antialiased}
+  .shell{max-width:1240px;margin:0 auto;padding:0 20px 60px}
+
+  /* ---- barra ---- */
+  .bar{background:var(--ink);color:#fff;margin:0 -20px 22px;padding:14px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:20}
+  .bar .mark{width:36px;height:36px;background:var(--teal);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;font-weight:600;flex:0 0 auto}
+  .bar h1{font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .bar .st{font-family:var(--mono);font-size:10px;color:var(--teal-lt);letter-spacing:.09em;text-transform:uppercase}
+  .bar .right{margin-left:auto;display:flex;align-items:center;gap:12px}
+  .bar .upd{font-family:var(--mono);font-size:10px;color:#93A4AB;text-align:right;line-height:1.35}
+  button{font-family:var(--sans);cursor:pointer;border-radius:0;font-size:13px}
+  .btn{background:var(--teal);color:#fff;border:none;padding:10px 18px;font-weight:600}
+  .btn:hover{background:var(--teal-lt)}
+  .btn.gh{background:transparent;border:1px solid #3A4650;color:#C8D2D8;padding:9px 14px;font-weight:500}
+  .btn.gh:hover{border-color:var(--teal-lt);color:#fff}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+
+  /* ---- filtros ---- */
+  .filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;background:var(--card);border:1px solid var(--line);padding:14px 16px;margin-bottom:20px}
+  .f{display:flex;flex-direction:column;gap:5px}
+  .f label{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--steel)}
+  .f select,.f input{font-family:var(--sans);font-size:13px;padding:8px 10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);outline:none;border-radius:0;min-width:130px}
+  .f select:focus,.f input:focus{border-color:var(--teal)}
+  .f .rst{background:none;border:none;color:var(--teal);font-size:12px;padding:9px 4px;font-weight:600}
+
+  /* ---- kpis ---- */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:26px}
+  .kpi{background:var(--card);padding:16px 18px}
+  .kpi .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--steel);margin-bottom:8px}
+  .kpi .v{font-size:34px;font-weight:700;letter-spacing:-.03em;line-height:1}
+  .kpi .n{font-size:11.5px;color:var(--steel);margin-top:5px}
+  .kpi.ok .v{color:var(--green)} .kpi.warn .v{color:var(--amber)} .kpi.bad .v{color:var(--red)}
+
+  /* ---- secciones ---- */
+  section{margin-bottom:30px}
+  h2{font-size:11px;font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--teal);
+     padding-bottom:7px;border-bottom:2px solid var(--ink);margin-bottom:2px;display:flex;align-items:baseline;gap:10px}
+  h2 .sub{font-family:var(--sans);font-size:11.5px;letter-spacing:0;text-transform:none;color:var(--steel);margin-left:auto;font-weight:400}
+  .panel{background:var(--card);border:1px solid var(--line);border-top:none}
+
+  /* ---- alertas ---- */
+  .alertas{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1px;background:var(--line)}
+  .al{background:var(--card);padding:15px 16px}
+  .al .top{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+  .al .num{font-size:27px;font-weight:700;line-height:1;letter-spacing:-.02em}
+  .al .tit{font-size:12.5px;font-weight:600;line-height:1.25}
+  .al .pct{font-family:var(--mono);font-size:10.5px;color:var(--steel);margin-left:auto;white-space:nowrap}
+  .al.r .num{color:var(--red)} .al.a .num{color:var(--amber)} .al.g .num{color:var(--green)}
+  .al ul{list-style:none;max-height:132px;overflow-y:auto;border-top:1px solid var(--line);padding-top:7px}
+  .al li{font-size:11.5px;padding:3px 0;color:var(--steel);display:flex;gap:8px}
+  .al li b{font-family:var(--mono);color:var(--ink);font-weight:600;font-size:11.5px}
+  .al li span{margin-left:auto;font-size:10.5px}
+  .al .vacio{font-size:11.5px;color:var(--steel);border-top:1px solid var(--line);padding-top:8px}
+
+  /* ---- barras ---- */
+  .bars{padding:16px 18px}
+  .bl{display:grid;grid-template-columns:1fr 74px;gap:12px;align-items:center;margin-bottom:11px}
+  .bl .lab{font-size:12.5px}
+  .bl .track{grid-column:1/-1;height:9px;background:var(--paper);position:relative;margin-top:-4px}
+  .bl .fill{height:100%;background:var(--green)}
+  .bl.mid .fill{background:var(--amber)} .bl.low .fill{background:var(--red)}
+  .bl .val{font-family:var(--mono);font-size:12.5px;font-weight:600;text-align:right}
+  .bl .val small{display:block;font-size:9.5px;color:var(--steel);font-weight:400}
+  .grupo{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--steel);
+         margin:20px 0 12px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+  .grupo:first-child{margin-top:0}
+
+  /* ---- tablas ---- */
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--steel);
+     text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);font-weight:500;white-space:nowrap}
+  th.n,td.n{text-align:right}
+  td{padding:10px 12px;border-bottom:1px solid var(--paper)}
+  tr:last-child td{border-bottom:none}
+  td.cod{font-family:var(--mono);font-weight:600}
+  .pill{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:600;padding:2px 8px;min-width:46px;text-align:center}
+  .pill.g{background:var(--green-pale);color:var(--green)}
+  .pill.a{background:var(--amber-pale);color:var(--amber)}
+  .pill.r{background:var(--red-pale);color:var(--red)}
+  .delta{font-family:var(--mono);font-size:12px;font-weight:600}
+  .delta.up{color:var(--green)} .delta.dn{color:var(--red)} .delta.eq{color:var(--steel)}
+  .mini{font-size:11px;color:var(--steel)}
+
+  /* ---- estados ---- */
+  .setup{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--teal);padding:26px;max-width:620px;margin:40px auto}
+  .setup h3{font-size:18px;margin-bottom:8px;letter-spacing:-.02em}
+  .setup p{font-size:13.5px;color:var(--steel);margin-bottom:16px;line-height:1.55}
+  .setup input{width:100%;font-family:var(--mono);font-size:12.5px;padding:11px;border:1px solid var(--line);background:var(--paper);outline:none;margin-bottom:12px}
+  .setup input:focus{border-color:var(--teal)}
+  .msg{padding:12px 14px;font-size:13px;margin-bottom:14px}
+  .msg.err{background:var(--red-pale);color:var(--red);border-left:3px solid var(--red)}
+  .msg.ok{background:var(--green-pale);color:var(--green);border-left:3px solid var(--green)}
+  .vacio-todo{text-align:center;padding:60px 20px;color:var(--steel);font-size:14px}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:7px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.spin{animation-duration:2.5s}}
+  .hidden{display:none !important}
+  @media print{.bar,.filtros,.btn{display:none}body{background:#fff}section{break-inside:avoid}}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="mark">REL</div>
+  <div>
+    <h1>Dashboard de Relevamiento</h1>
+    <div class="st">Territorio UNG</div>
+  </div>
+  <div class="right">
+    <div class="upd" id="upd"></div>
+    <button class="btn gh hidden" id="btn-cfg">Cambiar origen</button>
+    <button class="btn hidden" id="btn-upd">Actualizar</button>
+  </div>
+</div>
+
+<div class="shell">
+  <!-- configuración -->
+  <div class="setup" id="setup">
+    <h3>Conectar con tu planilla</h3>
+    <p>Pegá la misma URL de Apps Script que usás en el bot. Termina en <b>/exec</b>.
+       Queda guardada en este dispositivo: solo hay que hacerlo una vez.</p>
+    <div id="setup-msg"></div>
+    <input id="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" spellcheck="false">
+    <button class="btn" id="btn-conn">Conectar</button>
+  </div>
+
+  <div id="app" class="hidden">
+    <div class="filtros">
+      <div class="f"><label for="f-desde">Desde</label><input type="date" id="f-desde"></div>
+      <div class="f"><label for="f-hasta">Hasta</label><input type="date" id="f-hasta"></div>
+      <div class="f"><label for="f-vend">Vendedor</label><select id="f-vend"></select></div>
+      <div class="f"><label for="f-frec">Frecuencia</label><select id="f-frec"></select></div>
+      <div class="f"><button class="rst" id="f-reset">Limpiar filtros</button></div>
+    </div>
+    <div id="cuerpo"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $ = function(i){ return document.getElementById(i); };
+  var KEY='relevamiento_dash_url';
+  var COLS=[], FILAS=[], IDX={};
+
+  /* ---- criterios que analizamos ---- */
+  var PM = [
+    ['PM 60% Facing Gatorade','60% Facing share Gatorade'],
+    ['PM EDF espejo CCX','EDF espejo CCX'],
+    ['PM 35% FS Gondola','35% FS Góndola'],
+    ['PM 1 puntera','1 puntera'],
+    ['PM 2 exhibiciones','2 exhibiciones'],
+    ['PM 30% FS Aguas','30% FS Aguas'],
+    ['PM 30% FS Saborizadas','30% FS Saborizadas']
+  ];
+  var FOCOS = [
+    ['Foco 3L','3L'], ['Foco 2L','2L'], ['Foco Still','Still'],
+    ['Foco Individuales','Individuales'], ['Foco Combos','Combos'], ['Foco GTD Zero','GTD Zero']
+  ];
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function cel(f,nombre){ var i=IDX[nombre]; return i==null?'':f[i]; }
+  function si(v){ return String(v).trim()==='Sí' || String(v).trim()==='Si'; }
+  function tono(p){ return p>=80?'g':(p>=50?'a':'r'); }
+
+  /* ================= conexión ================= */
+  function url(){ try{ return localStorage.getItem(KEY)||''; }catch(e){ return ''; } }
+
+  $('btn-conn').onclick = function(){
+    var u = $('url').value.trim();
+    if(u.indexOf('https://script.google.com/')!==0 || u.indexOf('/exec')<0){
+      $('setup-msg').innerHTML='<div class="msg err">Esa no parece la URL correcta. Tiene que empezar con https://script.google.com/ y terminar en /exec.</div>';
+      return;
+    }
+    try{ localStorage.setItem(KEY,u); }catch(e){}
+    $('setup-msg').innerHTML='<div class="msg ok"><span class="spin"></span>Conectando…</div>';
+    cargar(true);
+  };
+  $('btn-cfg').onclick = function(){
+    $('app').className='hidden'; $('setup').className='setup';
+    $('btn-upd').className='btn hidden'; $('btn-cfg').className='btn gh hidden';
+    $('url').value=url(); $('setup-msg').innerHTML='';
+  };
+  $('btn-upd').onclick = function(){ cargar(false); };
+
+  function cargar(primera){
+    var u=url(); if(!u) return;
+    var b=$('btn-upd'); b.disabled=true; b.innerHTML='<span class="spin"></span>Actualizando';
+    fetch(u+(u.indexOf('?')<0?'?':'&')+'datos=1&t='+Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(!d || !d.ok) throw new Error(d && d.error ? d.error : 'respuesta inesperada');
+        COLS=d.columnas||[]; FILAS=d.filas||[];
+        IDX={}; for(var i=0;i<COLS.length;i++) IDX[String(COLS[i]).trim()]=i;
+        $('setup').className='setup hidden'; $('app').className='';
+        $('btn-upd').className='btn'; $('btn-cfg').className='btn gh';
+        var n=new Date();
+        $('upd').innerHTML='<b style="color:#fff">'+FILAS.length+'</b> visitas<br>'+
+          n.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+        if(primera) llenarFiltros();
+        pintar();
+      })['catch'](function(e){
+        var m='<div class="msg err">No pude leer la planilla. '+esc(e.message||'')+
+              '<br><br>Si publicaste el script antes de agregar el lector de datos, entrá a '+
+              '<b>Implementar → Administrar implementaciones</b>, tocá el lápiz y elegí <b>Nueva versión</b>.</div>';
+        if(primera){ $('setup-msg').innerHTML=m; }
+        else { $('cuerpo').innerHTML=m; }
+      })
+      ['finally'](function(){ b.disabled=false; b.textContent='Actualizar'; });
+  }
+
+  /* ================= filtros ================= */
+  function llenarFiltros(){
+    var vs={}, fs={};
+    for(var i=0;i<FILAS.length;i++){
+      var v=cel(FILAS[i],'Cod Vendedor'), f=cel(FILAS[i],'Frecuencia');
+      if(v) vs[v]=1; if(f) fs[f]=1;
+    }
+    opciones($('f-vend'),'Todos',Object.keys(vs).sort());
+    opciones($('f-frec'),'Todas',Object.keys(fs).sort());
+    ['f-desde','f-hasta','f-vend','f-frec'].forEach(function(id){ $(id).onchange=pintar; });
+    $('f-reset').onclick=function(){
+      ['f-desde','f-hasta'].forEach(function(id){ $(id).value=''; });
+      $('f-vend').selectedIndex=0; $('f-frec').selectedIndex=0; pintar();
+    };
+  }
+  function opciones(sel,todos,arr){
+    sel.innerHTML='<option value="">'+todos+'</option>'+
+      arr.map(function(x){ return '<option>'+esc(x)+'</option>'; }).join('');
+  }
+
+  function filtradas(){
+    var d=$('f-desde').value, h=$('f-hasta').value,
+        v=$('f-vend').value, f=$('f-frec').value;
+    return FILAS.filter(function(r){
+      var fe=String(cel(r,'Fecha')||'').slice(0,10);
+      if(d && fe<d) return false;
+      if(h && fe>h) return false;
+      if(v && cel(r,'Cod Vendedor')!==v) return false;
+      if(f && cel(r,'Frecuencia')!==f) return false;
+      return true;
+    });
+  }
+
+  /* ================= render ================= */
+  function pintar(){
+    var F=filtradas();
+    if(!F.length){
+      $('cuerpo').innerHTML='<div class="vacio-todo">No hay visitas con estos filtros.<br>'+
+        (FILAS.length?'Probá limpiar los filtros.':'La planilla todavía no tiene datos cargados.')+'</div>';
+      return;
+    }
+    $('cuerpo').innerHTML = kpis(F)+alertas(F)+oportunidades(F)+indicadores(F)+evolucion(F)+ranking(F);
+  }
+
+  function score(r){
+    var v=cel(r,'PM Score %');
+    if(v===''||v==null) return null;
+    var n=parseFloat(v);
+    if(isNaN(n)) return null;
+    return n<=1 ? Math.round(n*100) : Math.round(n);
+  }
+
+  /* ---- KPIs ---- */
+  function kpis(F){
+    var sc=[], rojo=0, ptcOk=0, ptcEval=0;
+    for(var i=0;i<F.length;i++){
+      var s=score(F[i]);
+      if(s!==null){ sc.push(s); if(s<50) rojo++; }
+      var p=String(cel(F[i],'Respeta PTC')||'').trim();
+      if(p){ ptcEval++; if(si(p)) ptcOk++; }
+    }
+    var prom = sc.length ? Math.round(sc.reduce(function(a,b){return a+b},0)/sc.length) : null;
+    var pctPtc = ptcEval ? Math.round(ptcOk/ptcEval*100) : null;
+    var pdvs={}; for(var k=0;k<F.length;k++) pdvs[cel(F[k],'Cod PDV')]=1;
+    var vend={}; for(var q=0;q<F.length;q++) vend[cel(F[q],'Cod Vendedor')]=1;
+
+    function box(k,v,n,cls){
+      return '<div class="kpi '+(cls||'')+'"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="n">'+n+'</div></div>';
+    }
+    return '<div class="kpis">'+
+      box('Visitas', F.length, Object.keys(pdvs).length+' PDV distintos') +
+      box('PM promedio', prom===null?'—':prom+'%', 'Programa de Mercado', prom===null?'':tonoK(prom)) +
+      box('Respeta PTC', pctPtc===null?'—':pctPtc+'%', ptcOk+' de '+ptcEval+' evaluados', pctPtc===null?'':tonoK(pctPtc)) +
+      box('PDV críticos', rojo, 'con PM por debajo de 50%', rojo?'bad':'ok') +
+      box('Vendedores', Object.keys(vend).length, 'con visitas en el período') +
+      '</div>';
+  }
+  function tonoK(p){ return p>=80?'ok':(p>=50?'warn':'bad'); }
+
+  /* ---- Alertas ---- */
+  function alertas(F){
+    var defs=[
+      {t:'Productos vencidos o por vencer', col:'Productos vencidos', hit:function(v){ return si(v); }, det:'Detalle vencidos', cls:'r'},
+      {t:'No respeta PTC', col:'Respeta PTC', hit:function(v){ var x=String(v).trim(); return x==='No'||x==='Parcial'; }, det:'Coment. PTC', cls:'r'},
+      {t:'Planograma sin cumplir', col:'Cumplimiento planograma', hit:function(v){ var x=String(v).trim(); return x==='No'||x==='Parcial'; }, det:'Coment. planograma', cls:'a'},
+      {t:'Material POP a reponer', col:'Estado material POP', hit:function(v){ var x=String(v).trim(); return x==='Malo'||x==='Regular'; }, det:'Coment. exhibicion', cls:'a'}
+    ];
+    var html='';
+    for(var i=0;i<defs.length;i++){
+      var d=defs[i], hits=[], eval_=0;
+      for(var k=0;k<F.length;k++){
+        var v=cel(F[k],d.col);
+        if(String(v).trim()==='') continue;
+        eval_++;
+        if(d.hit(v)) hits.push({pdv:cel(F[k],'Cod PDV'), vend:cel(F[k],'Cod Vendedor'),
+                                val:String(v).trim(), det:String(cel(F[k],d.det)||'')});
+      }
+      var pct = eval_ ? Math.round(hits.length/eval_*100) : 0;
+      html += '<div class="al '+(hits.length?d.cls:'g')+'">'+
+        '<div class="top"><span class="num">'+hits.length+'</span>'+
+        '<span class="tit">'+d.t+'</span>'+
+        '<span class="pct">'+pct+'% de '+eval_+'</span></div>'+
+        (hits.length
+          ? '<ul>'+hits.slice(0,40).map(function(h){
+              return '<li><b>'+esc(h.pdv)+'</b> '+esc(h.vend)+
+                     '<span>'+esc(h.det||h.val)+'</span></li>'; }).join('')+
+            (hits.length>40?'<li class="mini">y '+(hits.length-40)+' más</li>':'')+'</ul>'
+          : '<div class="vacio">Sin casos en el período.</div>')+
+        '</div>';
+    }
+    return sec('Alertas', 'Lo que hay que resolver primero', '<div class="alertas">'+html+'</div>');
+  }
+
+  /* ---- Oportunidades ---- */
+  function oportunidades(F){
+    var defs=[
+      {t:'Se puede colocar heladera', col:'Posibilidad heladera', det:'Detalle heladera'},
+      {t:'Hay espacio para ampliar exhibición', col:'Espacio ampliar exhibicion', det:'Detalle espacio'},
+      {t:'Potencial de nuevos productos', col:'Potencial nuevos productos', libre:true}
+    ];
+    var html='';
+    for(var i=0;i<defs.length;i++){
+      var d=defs[i], hits=[];
+      for(var k=0;k<F.length;k++){
+        var v=String(cel(F[k],d.col)||'').trim();
+        var ok = d.libre ? v!=='' : si(v);
+        if(ok) hits.push({pdv:cel(F[k],'Cod PDV'), vend:cel(F[k],'Cod Vendedor'),
+                          det:d.libre? v : String(cel(F[k],d.det)||'')});
+      }
+      html += '<div class="al'+(hits.length?' g':'')+'">'+
+        '<div class="top"><span class="num">'+hits.length+'</span><span class="tit">'+d.t+'</span></div>'+
+        (hits.length
+          ? '<ul>'+hits.slice(0,40).map(function(h){
+              return '<li><b>'+esc(h.pdv)+'</b> '+esc(h.vend)+'<span>'+esc(h.det)+'</span></li>'; }).join('')+
+            (hits.length>40?'<li class="mini">y '+(hits.length-40)+' más</li>':'')+'</ul>'
+          : '<div class="vacio">Sin oportunidades registradas.</div>')+
+        '</div>';
+    }
+    return sec('Oportunidades', 'PDV donde se puede accionar', '<div class="alertas">'+html+'</div>');
+  }
+
+  /* ---- Indicadores ---- */
+  function indicadores(F){
+    function bloque(defs){
+      var arr=[];
+      for(var i=0;i<defs.length;i++){
+        var col=defs[i][0], nom=defs[i][1], ok=0, ev=0;
+        for(var k=0;k<F.length;k++){
+          var v=String(cel(F[k],col)||'').trim();
+          if(!v) continue;
+          ev++; if(si(v)) ok++;
+        }
+        arr.push({nom:nom, ok:ok, ev:ev, pct: ev?Math.round(ok/ev*100):null});
+      }
+      arr.sort(function(a,b){
+        if(a.pct===null) return 1; if(b.pct===null) return -1;
+        return a.pct-b.pct;
+      });
+      return arr.map(function(x){
+        if(x.pct===null) return '<div class="bl"><span class="lab">'+esc(x.nom)+
+          '</span><span class="val mini">sin datos</span></div>';
+        var cls = x.pct>=80?'':(x.pct>=50?'mid':'low');
+        return '<div class="bl '+cls+'"><span class="lab">'+esc(x.nom)+'</span>'+
+          '<span class="val">'+x.pct+'%<small>'+x.ok+'/'+x.ev+'</small></span>'+
+          '<span class="track"><span class="fill" style="width:'+x.pct+'%"></span></span></div>';
+      }).join('');
+    }
+    return sec('Indicadores del territorio', 'Ordenados de peor a mejor cumplimiento',
+      '<div class="bars">'+
+      '<div class="grupo">Programa de Mercado</div>'+bloque(PM)+
+      '<div class="grupo">Presencia de focos</div>'+bloque(FOCOS)+
+      '</div>');
+  }
+
+  /* ---- Evolución ---- */
+  function evolucion(F){
+    var por={};
+    for(var i=0;i<F.length;i++){
+      var p=cel(F[i],'Cod PDV'); if(!p) continue;
+      (por[p]=por[p]||[]).push(F[i]);
+    }
+    var filas=[];
+    for(var k in por){
+      var vs=por[k];
+      if(vs.length<2) continue;
+      vs.sort(function(a,b){ return String(cel(a,'Fecha')).localeCompare(String(cel(b,'Fecha'))); });
+      var pri=score(vs[0]), ult=score(vs[vs.length-1]);
+      if(pri===null||ult===null) continue;
+      filas.push({pdv:k, vend:cel(vs[vs.length-1],'Cod Vendedor'), n:vs.length,
+                  f1:String(cel(vs[0],'Fecha')).slice(0,10),
+                  f2:String(cel(vs[vs.length-1],'Fecha')).slice(0,10),
+                  pri:pri, ult:ult, d:ult-pri});
+    }
+    filas.sort(function(a,b){ return a.d-b.d; });
+    if(!filas.length){
+      return sec('Evolución por PDV','Compara la primera visita contra la última',
+        '<div class="vacio-todo">Todavía no hay PDV con más de una visita en el período.<br>'+
+        'La comparación aparece cuando vuelvas a relevar un mismo punto de venta.</div>');
+    }
+    var mejor=filas.filter(function(x){return x.d>0}).length,
+        peor=filas.filter(function(x){return x.d<0}).length;
+    var html='<table><thead><tr><th>PDV</th><th>Vendedor</th><th class="n">Visitas</th>'+
+      '<th>Primera</th><th class="n">PM</th><th>Última</th><th class="n">PM</th><th class="n">Var.</th></tr></thead><tbody>';
+    for(var q=0;q<filas.length;q++){
+      var x=filas[q];
+      var cls = x.d>0?'up':(x.d<0?'dn':'eq');
+      var sig = x.d>0?'▲ +':(x.d<0?'▼ ':'– ');
+      html+='<tr><td class="cod">'+esc(x.pdv)+'</td><td class="mini">'+esc(x.vend)+'</td>'+
+        '<td class="n mini">'+x.n+'</td>'+
+        '<td class="mini">'+esc(x.f1)+'</td><td class="n"><span class="pill '+tono(x.pri)+'">'+x.pri+'%</span></td>'+
+        '<td class="mini">'+esc(x.f2)+'</td><td class="n"><span class="pill '+tono(x.ult)+'">'+x.ult+'%</span></td>'+
+        '<td class="n"><span class="delta '+cls+'">'+sig+(x.d===0?'':Math.abs(x.d))+(x.d===0?'':' pts')+'</span></td></tr>';
+    }
+    html+='</tbody></table>';
+    return sec('Evolución por PDV', mejor+' mejoraron · '+peor+' empeoraron', html);
+  }
+
+  /* ---- Ranking ---- */
+  function ranking(F){
+    var por={};
+    for(var i=0;i<F.length;i++){
+      var v=cel(F[i],'Cod Vendedor')||'(sin vendedor)';
+      var o=por[v]=por[v]||{v:v,n:0,sc:[],pdv:{},alertas:0};
+      o.n++; o.pdv[cel(F[i],'Cod PDV')]=1;
+      var s=score(F[i]); if(s!==null) o.sc.push(s);
+      if(si(cel(F[i],'Productos vencidos'))) o.alertas++;
+      var p=String(cel(F[i],'Respeta PTC')||'').trim();
+      if(p==='No'||p==='Parcial') o.alertas++;
+    }
+    var arr=[];
+    for(var k in por){
+      var o=por[k];
+      o.prom = o.sc.length ? Math.round(o.sc.reduce(function(a,b){return a+b},0)/o.sc.length) : null;
+      arr.push(o);
+    }
+    arr.sort(function(a,b){
+      if(a.prom===null) return 1; if(b.prom===null) return -1;
+      return b.prom-a.prom;
+    });
+    var html='<table><thead><tr><th>#</th><th>Vendedor</th><th class="n">Visitas</th>'+
+      '<th class="n">PDV</th><th class="n">Alertas</th><th class="n">PM promedio</th><th></th></tr></thead><tbody>';
+    for(var q=0;q<arr.length;q++){
+      var o=arr[q], p=o.prom;
+      html+='<tr><td class="mini">'+(q+1)+'</td><td class="cod">'+esc(o.v)+'</td>'+
+        '<td class="n">'+o.n+'</td><td class="n">'+Object.keys(o.pdv).length+'</td>'+
+        '<td class="n'+(o.alertas?'':' mini')+'">'+o.alertas+'</td>'+
+        '<td class="n">'+(p===null?'<span class="mini">sin datos</span>':'<span class="pill '+tono(p)+'">'+p+'%</span>')+'</td>'+
+        '<td style="width:130px">'+(p===null?'':'<span class="track" style="display:block;height:8px;background:var(--paper)">'+
+          '<span class="fill" style="display:block;height:100%;width:'+p+'%;background:var(--'+
+          (p>=80?'green':(p>=50?'amber':'red'))+')"></span></span>')+'</td></tr>';
+    }
+    html+='</tbody></table>';
+    return sec('Ranking por vendedor', arr.length+' vendedores en el período', html);
+  }
+
+  function sec(titulo, sub, contenido){
+    return '<section><h2>'+esc(titulo)+'<span class="sub">'+esc(sub)+'</span></h2>'+
+           '<div class="panel">'+contenido+'</div></section>';
+  }
+
+  /* ---- arranque ---- */
+  if(url()){ $('url').value=url(); cargar(true); }
+})();
+</script>
+</body>
+</html>
