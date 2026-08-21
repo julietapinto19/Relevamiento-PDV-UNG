@@ -246,7 +246,7 @@
           var r=JSON.parse(JSON.stringify(v.resp||{}));
           if(notas){ r.probl = r.probl||{val:'',com:''}; r.probl.val = (r.probl.val?r.probl.val+' · ':'')+notas; }
           return {
-            id:v.id, pdv:v.pdv, vendedor:v.vendedor,
+            id:v.id, pdv:v.pdv, vendedor:v.vendedor, frecuencia:v.frecuencia||'',
             fecha: d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()),
             hora: pad(d.getHours())+':'+pad(d.getMinutes()),
             resp:r, cantFotos:f
@@ -345,7 +345,7 @@
     code = String(code).trim().toUpperCase();
     cur = { id:idVisita(), pdv:code, vendedor:'', vendedorNom:'', items:[], resp:{}, abierto:true };
     step = 'vendedor'; counters();
-    say('<b>PDV '+esc(code)+'</b> abierto. ¿Código de vendedor?');
+    say('<b>PDV '+esc(code)+'</b> abierto. ¿Código de vendedor? (solo números)');
     chips([]);
   }
   function idVisita(){
@@ -353,8 +353,12 @@
     return 'V-'+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'-'+pad(d.getHours())+pad(d.getMinutes());
   }
 
+  var FRECUENCIAS = ['Lu','Ju','Luju','Ma','Vi','Mavi','Mi','Sa','Misa'];
+
   function handle(raw){
     var t=raw.toLowerCase().trim();
+
+    /* --- comandos globales: valen en cualquier paso --- */
     if(/^(ayuda|help|comandos)$/.test(t)) return help();
     if(/^(ver|estado)$/.test(t)) return ver();
     if(/^(configurar|drive|conectar)$/.test(t) && step!=='config') return configurar('');
@@ -362,22 +366,51 @@
 
     if(step==='config'){
       if(/^(cancelar|salir)$/.test(t)){ step='pdv'; say('Listo, nada cambió.','sys'); chips([]); return; }
-      if(/^desconectar$/.test(t)){ setDriveURL(''); step='pdv'; say('Drive desconectado.','sys'); chips([]); return; }
       return configurar(raw);
     }
+
+    /* cerrar el recorrido funciona siempre, aunque haya un PDV recién abierto */
+    if(/^(cerrar|finalizar)$/.test(t)){
+      if(cur && !nreg(cur)){
+        var vacio=cur.pdv; cur=null; step='pdv'; chk=null; counters();
+        say('Descarté el PDV '+esc(vacio)+' porque estaba vacío.','sys');
+      }
+      return cerrarTodo();
+    }
+
+    /* siguiente solo tiene sentido con un PDV abierto */
+    if(/^(siguiente|otro pdv|nuevo pdv)$/.test(t)){
+      if(!cur) return say('No hay ningún PDV abierto. Escribí el código para abrir uno, o '+cmd('cerrar')+' para terminar el recorrido.','sys');
+      if(step!=='carga') return say('Todavía falta completar los datos de este PDV.','sys');
+      return cerrarPDV();
+    }
+
+    /* --- pasos de apertura --- */
     if(step==='pdv'){
       var code=raw.replace(/^pdv\s*/i,'').trim();
       if(!code) return say('Necesito el código de PDV.');
+      if(!/^\d+$/.test(code))
+        return say('El código de PDV es solo números. Escribilo sin letras ni guiones — por ejemplo <b>104582</b>.','sys');
       return abrirPDV(code);
     }
     if(step==='vendedor'){
-      cur.vendedor=raw.trim().toUpperCase(); step='carga';
-      say('Listo. Mandá fotos con su comentario o escribí notas.\nPara relevar en detalle: '+cmd('checklist')+' o un bloque suelto.');
-      menu(); return;
+      var v=raw.replace(/^v[-\s]*/i,'').trim();
+      if(!/^\d+$/.test(v))
+        return say('El código de vendedor es solo números — por ejemplo <b>118</b>.','sys');
+      cur.vendedor='V-'+v; step='frecuencia'; counters();
+      say('Vendedor <b>'+esc(cur.vendedor)+'</b>. ¿Frecuencia de visita?');
+      chips(FRECUENCIAS, function(f){ me(f); setFrecuencia(f); });
+      return;
+    }
+    if(step==='frecuencia'){
+      var f=null;
+      for(var i=0;i<FRECUENCIAS.length;i++)
+        if(FRECUENCIAS[i].toLowerCase()===t) f=FRECUENCIAS[i];
+      if(!f) return say('Frecuencia no válida. Elegí una de las opciones: '+FRECUENCIAS.join(' · '),'sys');
+      return setFrecuencia(f);
     }
 
-    if(/^(siguiente|otro pdv|nuevo pdv)$/.test(t)) return cerrarPDV();
-    if(/^(cerrar|finalizar)$/.test(t)) return cerrarTodo();
+    /* --- carga --- */
     if(/^(deshacer|borrar)$/.test(t)){
       var x=cur.items.pop(); counters();
       return say(x?'Borré el último registro.':'No hay nada para borrar en este PDV.');
@@ -390,11 +423,17 @@
     cur.items.push({t:'nota',text:raw.trim()}); counters(); say('Anotado.');
   }
 
+  function setFrecuencia(f){
+    cur.frecuencia=f; step='carga'; counters();
+    say('Frecuencia <b>'+esc(f)+'</b>. Listo para cargar.\nMandá fotos con su comentario o escribí notas.\nPara relevar en detalle: '+cmd('checklist')+' o un bloque suelto.');
+    menu();
+  }
+
   function menu(){ chips(['checklist','programa','editar','siguiente','cerrar']); }
 
   function help(){
     say('<b>Comandos</b>\n'+cmd('checklist')+' — relevamiento completo\nBloque suelto: '+BLOQUES.map(function(b){return b.cmd}).join(' · ')+
-        '\n'+cmd('configurar')+' — conectar con tu carpeta de Drive\n'+cmd('editar')+' — corregir una respuesta ya cargada\n'+cmd('siguiente')+' — cerrar este PDV y abrir otro\n'+cmd('cerrar')+' — terminar el recorrido y generar el PDF\n'+cmd('deshacer')+' — borrar el último registro\n'+cmd('ver')+' — qué llevás cargado\n\nDentro del checklist: '+cmd('atrás')+', '+cmd('saltar')+', '+cmd('saltar bloque')+', '+cmd('salir')+'.\nTodo lo demás queda como nota.');
+        '\n'+cmd('editar')+' — corregir una respuesta ya cargada\n'+cmd('siguiente')+' — cerrar este PDV y abrir otro\n'+cmd('cerrar')+' — terminar el recorrido y generar el PDF\n'+cmd('deshacer')+' — borrar el último registro\n'+cmd('ver')+' — qué llevás cargado\n'+cmd('configurar')+' — conectar con tu carpeta de Drive\n\nDentro del checklist: '+cmd('atrás')+', '+cmd('saltar')+', '+cmd('saltar bloque')+', '+cmd('salir')+'.\nTodo lo demás queda como nota.');
   }
   function ver(){
     if(!visitas.length && !cur) return say('Todavía no cargaste nada.');
@@ -622,7 +661,7 @@
       doc.setFontSize(19); doc.setTextColor(14,26,31);
       doc.text('PDV '+v.pdv,M,24);
       doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(102,117,124);
-      var l2='Vendedor '+(v.vendedor||'-')+(v.vendedorNom?' - '+v.vendedorNom:'')+'   |   '+fecha;
+      var l2='Vendedor '+(v.vendedor||'-')+(v.frecuencia?'  |  Visita '+v.frecuencia:'')+'   |   '+fecha;
       doc.text(l2,M,30);
       rule(34,[14,26,31]); y=43;
     }
@@ -761,8 +800,9 @@
       say('Recuperé un recorrido sin cerrar:'+(l?'\n'+l:'')+
           (cur?'\n· PDV '+esc(cur.pdv)+' — '+nreg(cur)+' reg. (quedó abierto)':''),'sys');
       if(cur){
-        step = cur.vendedor ? 'carga' : 'vendedor';
-        if(step==='vendedor'){ say('Seguimos con el <b>PDV '+esc(cur.pdv)+'</b>. ¿Código de vendedor?'); chips([]); }
+        step = !cur.vendedor ? 'vendedor' : (!cur.frecuencia ? 'frecuencia' : 'carga');
+        if(step==='vendedor'){ say('Seguimos con el <b>PDV '+esc(cur.pdv)+'</b>. ¿Código de vendedor? (solo números)'); chips([]); }
+        else if(step==='frecuencia'){ say('Seguimos con el <b>PDV '+esc(cur.pdv)+'</b>. ¿Frecuencia de visita?'); chips(FRECUENCIAS, function(f){ me(f); setFrecuencia(f); }); }
         else { say('Seguimos con el <b>PDV '+esc(cur.pdv)+'</b>. Cargá lo que falte, o '+cmd('siguiente')+' para pasar al próximo.'); menu(); }
       } else {
         say('Seguí cargando o '+cmd('cerrar')+' para generar el PDF.');
