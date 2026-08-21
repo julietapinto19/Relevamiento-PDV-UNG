@@ -200,6 +200,10 @@
 
   /* ===================== Drive ===================== */
   var DRIVE_KEY='relevamiento_drive_url';
+  var NOMBRE_KEY='relevamiento_relevador';
+  var RELEVADORES=['Julieta','Martin','Fernando'];
+  function relevador(){ try{ return localStorage.getItem(NOMBRE_KEY)||''; }catch(e){ return ''; } }
+  function setRelevador(n){ try{ localStorage.setItem(NOMBRE_KEY,n); }catch(e){} }
   function driveURL(){ try{ return localStorage.getItem(DRIVE_KEY)||''; }catch(e){ return ''; } }
   function setDriveURL(u){ try{ localStorage.setItem(DRIVE_KEY,u); return true; }catch(e){ return false; } }
 
@@ -247,6 +251,7 @@
           if(notas){ r.probl = r.probl||{val:'',com:''}; r.probl.val = (r.probl.val?r.probl.val+' · ':'')+notas; }
           return {
             id:v.id, pdv:v.pdv, vendedor:v.vendedor, frecuencia:v.frecuencia||'',
+            relevadoPor: relevador(),
             fecha: d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()),
             hora: pad(d.getHours())+':'+pad(d.getMinutes()),
             resp:r, cantFotos:f
@@ -362,6 +367,35 @@
     if(/^(ayuda|help|comandos)$/.test(t)) return help();
     if(/^(ver|estado)$/.test(t)) return ver();
     if(/^(configurar|drive|conectar)$/.test(t) && step!=='config') return configurar('');
+    if(/^(nombre|quien soy|yo)$/.test(t) && step!=='nombre'){
+      step='nombre';
+      say('Ahora figurás como <b>'+esc(relevador()||'(sin definir)')+'</b>.\n¿Quién sos?','sys');
+      chips(RELEVADORES.concat(['Otro','cancelar']), elegirRelevador); return;
+    }
+    if(step==='nombre'){
+      if(/^(cancelar|salir)$/.test(t)){
+        otroModo=false;
+        step= relevador()?'pdv':'nombre';
+        if(step==='pdv'){ say('Listo, sigue igual.','sys'); chips([]); }
+        else { say('Necesito saber quién sos para poder arrancar.','sys'); chips(RELEVADORES.concat(['Otro']), elegirRelevador); }
+        return;
+      }
+      if(/^otro$/.test(t)) return elegirRelevador('Otro');
+      for(var ri=0;ri<RELEVADORES.length;ri++)
+        if(RELEVADORES[ri].toLowerCase()===t) return elegirRelevador(RELEVADORES[ri]);
+
+      // escribió un nombre propio
+      var nom=raw.trim().replace(/\s+/g,' ');
+      if(!otroModo){
+        say('No está en la lista. Tocá <b>Otro</b> si querés cargarte con otro nombre.','sys');
+        chips(RELEVADORES.concat(['Otro'], relevador()?['cancelar']:[]), elegirRelevador);
+        return;
+      }
+      if(nom.length<3) return say('Escribí tu nombre completo, al menos 3 letras.','sys');
+      nom = nom.charAt(0).toUpperCase()+nom.slice(1);
+      otroModo=false;
+      return guardarRelevador(nom);
+    }
     if(/^desconectar$/.test(t) && step!=='config'){ setDriveURL(''); return say('Drive desconectado. Los PDF se siguen generando en el celular.','sys'); }
 
     if(step==='config'){
@@ -423,6 +457,24 @@
     cur.items.push({t:'nota',text:raw.trim()}); counters(); say('Anotado.');
   }
 
+  var otroModo=false;
+  function elegirRelevador(n){
+    if(n==='cancelar'){ me('cancelar'); otroModo=false; return handle('cancelar'); }
+    if(n==='Otro'){
+      me('Otro'); otroModo=true; step='nombre';
+      say('Escribí tu nombre.','sys');
+      chips(relevador()?['cancelar']:[]);
+      inp.focus();
+      return;
+    }
+    me(n); guardarRelevador(n);
+  }
+  function guardarRelevador(n){
+    setRelevador(n); step='pdv';
+    say('Listo, <b>'+esc(n)+'</b>. Vas a figurar en la planilla en cada visita que cargues.\n\nEscribí el <b>código de PDV</b> para empezar.');
+    chips([]);
+  }
+
   function setFrecuencia(f){
     cur.frecuencia=f; step='carga'; counters();
     say('Frecuencia <b>'+esc(f)+'</b>. Listo para cargar.\nMandá fotos con su comentario o escribí notas.\nPara relevar en detalle: '+cmd('checklist')+' o un bloque suelto.');
@@ -433,7 +485,7 @@
 
   function help(){
     say('<b>Comandos</b>\n'+cmd('checklist')+' — relevamiento completo\nBloque suelto: '+BLOQUES.map(function(b){return b.cmd}).join(' · ')+
-        '\n'+cmd('editar')+' — corregir una respuesta ya cargada\n'+cmd('siguiente')+' — cerrar este PDV y abrir otro\n'+cmd('cerrar')+' — terminar el recorrido y generar el PDF\n'+cmd('deshacer')+' — borrar el último registro\n'+cmd('ver')+' — qué llevás cargado\n'+cmd('configurar')+' — conectar con tu carpeta de Drive\n\nDentro del checklist: '+cmd('atrás')+', '+cmd('saltar')+', '+cmd('saltar bloque')+', '+cmd('salir')+'.\nTodo lo demás queda como nota.');
+        '\n'+cmd('editar')+' — corregir una respuesta ya cargada\n'+cmd('siguiente')+' — cerrar este PDV y abrir otro\n'+cmd('cerrar')+' — terminar el recorrido y generar el PDF\n'+cmd('deshacer')+' — borrar el último registro\n'+cmd('ver')+' — qué llevás cargado\n'+cmd('nombre')+' — cambiar quién figura como relevador\n'+cmd('configurar')+' — conectar con tu carpeta de Drive\n\nDentro del checklist: '+cmd('atrás')+', '+cmd('saltar')+', '+cmd('saltar bloque')+', '+cmd('salir')+'.\nTodo lo demás queda como nota.');
   }
   function ver(){
     if(!visitas.length && !cur) return say('Todavía no cargaste nada.');
@@ -811,7 +863,12 @@
       return;
     }
     stage(); counters();
-    say('Arrancamos el recorrido.\nEscribí el <b>código de PDV</b> para empezar.\n'+cmd('ayuda')+' para ver los comandos.');
+    if(!relevador()){
+      step='nombre';
+      say('Antes de arrancar: <b>¿quién sos?</b>\nLo uso para identificar quién carga cada relevamiento en la planilla. Solo te lo pregunto esta vez.','sys');
+      chips(RELEVADORES.concat(['Otro']), elegirRelevador); return;
+    }
+    say('Hola <b>'+esc(relevador())+'</b>. Arrancamos el recorrido.\nEscribí el <b>código de PDV</b> para empezar.\n'+cmd('ayuda')+' para ver los comandos.');
     chips([]);
   });
 })();
