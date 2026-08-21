@@ -149,6 +149,7 @@
       <div class="f"><label for="f-hasta">Hasta</label><input type="date" id="f-hasta"></div>
       <div class="f"><label for="f-vend">Vendedor</label><select id="f-vend"></select></div>
       <div class="f"><label for="f-frec">Frecuencia</label><select id="f-frec"></select></div>
+      <div class="f"><label for="f-quien">Relevado por</label><select id="f-quien"></select></div>
       <div class="f"><button class="rst" id="f-reset">Limpiar filtros</button></div>
     </div>
     <div id="cuerpo"></div>
@@ -230,17 +231,18 @@
 
   /* ================= filtros ================= */
   function llenarFiltros(){
-    var vs={}, fs={};
+    var vs={}, fs={}, qs={};
     for(var i=0;i<FILAS.length;i++){
-      var v=cel(FILAS[i],'Cod Vendedor'), f=cel(FILAS[i],'Frecuencia');
-      if(v) vs[v]=1; if(f) fs[f]=1;
+      var v=cel(FILAS[i],'Cod Vendedor'), f=cel(FILAS[i],'Frecuencia'), q=cel(FILAS[i],'Relevado por');
+      if(v) vs[v]=1; if(f) fs[f]=1; if(q) qs[q]=1;
     }
     opciones($('f-vend'),'Todos',Object.keys(vs).sort());
     opciones($('f-frec'),'Todas',Object.keys(fs).sort());
-    ['f-desde','f-hasta','f-vend','f-frec'].forEach(function(id){ $(id).onchange=pintar; });
+    opciones($('f-quien'),'Todos',Object.keys(qs).sort());
+    ['f-desde','f-hasta','f-vend','f-frec','f-quien'].forEach(function(id){ $(id).onchange=pintar; });
     $('f-reset').onclick=function(){
       ['f-desde','f-hasta'].forEach(function(id){ $(id).value=''; });
-      $('f-vend').selectedIndex=0; $('f-frec').selectedIndex=0; pintar();
+      $('f-vend').selectedIndex=0; $('f-frec').selectedIndex=0; $('f-quien').selectedIndex=0; pintar();
     };
   }
   function opciones(sel,todos,arr){
@@ -250,13 +252,14 @@
 
   function filtradas(){
     var d=$('f-desde').value, h=$('f-hasta').value,
-        v=$('f-vend').value, f=$('f-frec').value;
+        v=$('f-vend').value, f=$('f-frec').value, q=$('f-quien').value;
     return FILAS.filter(function(r){
       var fe=String(cel(r,'Fecha')||'').slice(0,10);
       if(d && fe<d) return false;
       if(h && fe>h) return false;
       if(v && cel(r,'Cod Vendedor')!==v) return false;
       if(f && cel(r,'Frecuencia')!==f) return false;
+      if(q && cel(r,'Relevado por')!==q) return false;
       return true;
     });
   }
@@ -293,6 +296,7 @@
     var pctPtc = ptcEval ? Math.round(ptcOk/ptcEval*100) : null;
     var pdvs={}; for(var k=0;k<F.length;k++) pdvs[cel(F[k],'Cod PDV')]=1;
     var vend={}; for(var q=0;q<F.length;q++) vend[cel(F[q],'Cod Vendedor')]=1;
+    var quienes={}; for(var w=0;w<F.length;w++){ var z=cel(F[w],'Relevado por'); if(z) quienes[z]=1; }
 
     function box(k,v,n,cls){
       return '<div class="kpi '+(cls||'')+'"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="n">'+n+'</div></div>';
@@ -303,6 +307,7 @@
       box('Respeta PTC', pctPtc===null?'—':pctPtc+'%', ptcOk+' de '+ptcEval+' evaluados', pctPtc===null?'':tonoK(pctPtc)) +
       box('PDV críticos', rojo, 'con PM por debajo de 50%', rojo?'bad':'ok') +
       box('Vendedores', Object.keys(vend).length, 'con visitas en el período') +
+      box('Relevadores', Object.keys(quienes).length, 'cargaron en el período') +
       '</div>';
   }
   function tonoK(p){ return p>=80?'ok':(p>=50?'warn':'bad'); }

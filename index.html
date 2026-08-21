@@ -235,6 +235,12 @@
   function subirDrive(lista, vendedor, blob, nombre){
     var u=driveURL();
     if(!u) return;
+    if(!vendedor){
+      var uni={};
+      for(var z=0;z<lista.length;z++) if(lista[z].vendedor) uni[lista[z].vendedor]=1;
+      var kk=Object.keys(uni);
+      vendedor = kk.length===1 ? kk[0] : 'Recorridos completos';
+    }
     var el=say('Subiendo a Drive…','sys');
     var fr=new FileReader();
     fr.onload=function(){
@@ -245,7 +251,12 @@
         pdfNombre: nombre,
         pdf: b64,
         visitas: lista.map(function(v){
-          var f=0; for(var i=0;i<v.items.length;i++) if(v.items[i].t==='foto') f++;
+          var f=0, fe=0, qExh={};
+          for(var e=0;e<BLOQUES[0].items.length;e++) qExh[BLOQUES[0].items[e].q]=1;
+          for(var i=0;i<v.items.length;i++){
+            if(v.items[i].t!=='foto') continue;
+            f++; if(qExh[v.items[i].ref]) fe++;
+          }
           var notas=v.items.filter(function(i){ return i.t==='nota'; }).map(function(i){ return i.text; }).join(' · ');
           var r=JSON.parse(JSON.stringify(v.resp||{}));
           if(notas){ r.probl = r.probl||{val:'',com:''}; r.probl.val = (r.probl.val?r.probl.val+' · ':'')+notas; }
@@ -254,7 +265,7 @@
             relevadoPor: relevador(),
             fecha: d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()),
             hora: pad(d.getHours())+':'+pad(d.getMinutes()),
-            resp:r, cantFotos:f
+            resp:r, cantFotos:f, fotosExhibicion:fe
           };
         })
       };
@@ -688,10 +699,10 @@
         return '· PDV '+esc(v.pdv)+' ('+esc(v.vendedor)+')'+(s?' — PM '+s.pct+'%':'');
       }).join('\n')+'\n\n'+ks.length+(ks.length===1?' vendedor':' vendedores')+' en este recorrido.');
       chips(ks.length>1 ? ['pdf por vendedor','pdf completo'] : ['generar pdf'], function(c){
-        if(c==='pdf por vendedor'){
-          for(var i=0;i<ks.length;i++) buildPDF(vend[ks[i]], ks[i], i===ks.length-1);
-        } else {
+        if(c==='pdf completo'){
           buildPDF(visitas, null, true);
+        } else {
+          for(var i=0;i<ks.length;i++) buildPDF(vend[ks[i]], ks[i], i===ks.length-1);
         }
       });
     });
