@@ -84,6 +84,34 @@
          margin:20px 0 12px;padding-bottom:5px;border-bottom:1px solid var(--line)}
   .grupo:first-child{margin-top:0}
 
+  /* ---- acciones ---- */
+  .accs{padding:2px 0}
+  .acc{padding:15px 18px;border-bottom:1px solid var(--line)}
+  .acc:last-child{border-bottom:none}
+  .acc.r{border-left:3px solid var(--red)}
+  .acc.a{border-left:3px solid var(--amber)}
+  .acc.g{border-left:3px solid var(--green)}
+  .acc-h{display:flex;align-items:center;gap:9px;margin-bottom:7px;flex-wrap:wrap}
+  .acc .tag{font-family:var(--mono);font-size:9px;letter-spacing:.11em;font-weight:600;padding:3px 7px}
+  .acc.r .tag{background:var(--red-pale);color:var(--red)}
+  .acc.a .tag{background:var(--amber-pale);color:var(--amber)}
+  .acc.g .tag{background:var(--green-pale);color:var(--green)}
+  .acc .niv{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--steel)}
+  .acc .cnt{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--steel)}
+  .acc-t{font-size:15.5px;font-weight:600;letter-spacing:-.015em;margin-bottom:9px;line-height:1.3}
+  .comos{list-style:none;margin-bottom:8px}
+  .comos li{font-size:12.5px;color:var(--ink);padding:3px 0 3px 15px;position:relative;line-height:1.45}
+  .comos li::before{content:'';position:absolute;left:0;top:11px;width:7px;height:1px;background:var(--teal)}
+  .acc details{font-size:12px}
+  .acc summary{cursor:pointer;color:var(--teal);font-size:11.5px;font-weight:600;padding:3px 0;list-style:none}
+  .acc summary::-webkit-details-marker{display:none}
+  .acc summary::before{content:'▸ '}
+  .acc details[open] summary::before{content:'▾ '}
+  .casos{margin-top:7px;border-top:1px solid var(--line);padding-top:7px;max-height:220px;overflow-y:auto}
+  .caso{font-size:12px;color:var(--steel);padding:4px 0;line-height:1.45;border-bottom:1px solid var(--paper)}
+  .caso:last-child{border-bottom:none}
+  .caso b{font-family:var(--mono);color:var(--ink);font-weight:600;margin-right:6px}
+
   /* ---- tablas ---- */
   table{width:100%;border-collapse:collapse;font-size:12.5px}
   th{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--steel);
@@ -272,7 +300,7 @@
         (FILAS.length?'Probá limpiar los filtros.':'La planilla todavía no tiene datos cargados.')+'</div>';
       return;
     }
-    $('cuerpo').innerHTML = kpis(F)+alertas(F)+oportunidades(F)+indicadores(F)+evolucion(F)+ranking(F);
+    $('cuerpo').innerHTML = kpis(F)+acciones(F)+alertas(F)+oportunidades(F)+indicadores(F)+evolucion(F)+ranking(F);
   }
 
   function score(r){
@@ -486,6 +514,213 @@
     }
     html+='</tbody></table>';
     return sec('Ranking por vendedor', arr.length+' vendedores en el período', html);
+  }
+
+  /* ================= MOTOR DE ACCIONES =================
+     Cada regla mira los datos y, si se cumple, genera una acción.
+     Nivel PDV: algo que hay que resolver en ese local.
+     Nivel vendedor: un patrón que se repite y se trabaja con la persona.
+     Nivel territorio: falla generalizada, es problema del programa.
+  */
+
+  function txt(r,c){ return String(cel(r,c)||'').trim(); }
+  function comentarios(r){
+    var cs=['Coment. exhibicion','Coment. PTC','Coment. planograma','Detalle vencidos',
+            'Detalle espacio','Detalle heladera','Info competencia','Problemas detectados',
+            'Comentarios del comerciante','Acciones a realizar','Potencial nuevos productos'];
+    var out=[];
+    for(var i=0;i<cs.length;i++){ var v=txt(r,cs[i]); if(v) out.push(v); }
+    return out;
+  }
+
+  function acciones(F){
+    var A=[];  // {prio, nivel, quien, titulo, porque, comos:[], pdvs:[]}
+
+    /* ---------- nivel PDV ---------- */
+    for(var i=0;i<F.length;i++){
+      var r=F[i], pdv=txt(r,'Cod PDV'), vend=txt(r,'Cod Vendedor');
+      var ref=pdv+(vend?' · '+vend:'');
+
+      if(si(txt(r,'Productos vencidos'))){
+        A.push({prio:1, nivel:'PDV', quien:ref, titulo:'Retirar producto vencido',
+          porque:'Se detectó producto vencido o próximo a vencer'+(txt(r,'Detalle vencidos')?': '+txt(r,'Detalle vencidos'):'')+'.',
+          comos:['Retirar de góndola y heladera en la próxima visita',
+                 'Registrar el canje con el comerciante',
+                 'Revisar la frecuencia de reposición del SKU']});
+      }
+      var ptc=txt(r,'Respeta PTC');
+      if(ptc==='No'||ptc==='Parcial'){
+        A.push({prio: ptc==='No'?1:2, nivel:'PDV', quien:ref,
+          titulo: ptc==='No' ? 'Renegociar precio: no respeta PTC' : 'Corregir PTC parcial',
+          porque:'El PDV '+(ptc==='No'?'no respeta':'respeta parcialmente')+' el precio sugerido'+
+                 (txt(r,'Coment. PTC')?'. '+txt(r,'Coment. PTC'):'.'),
+          comos:['Mostrar al comerciante el margen del PTC vs. el precio actual',
+                 'Dejar cartelería de precio en el SKU corregido',
+                 'Verificar el precio en la próxima visita']});
+      }
+      var plano=txt(r,'Cumplimiento planograma');
+      if(plano==='No'||plano==='Parcial'){
+        A.push({prio: plano==='No'?1:2, nivel:'PDV', quien:ref,
+          titulo:'Reordenar según planograma',
+          porque:'Cumplimiento '+(plano==='No'?'nulo':'parcial')+
+                 (txt(r,'Coment. planograma')?': '+txt(r,'Coment. planograma'):'.'),
+          comos:['Rearmar el bloque en la próxima visita del vendedor',
+                 'Sacar foto del antes y el después',
+                 'Dejar el planograma impreso en el local']});
+      }
+      var pop=txt(r,'Estado material POP');
+      if(pop==='Malo'||pop==='Regular'){
+        A.push({prio: pop==='Malo'?2:3, nivel:'PDV', quien:ref,
+          titulo:'Reponer material POP',
+          porque:'Material POP en estado '+pop.toLowerCase()+
+                 (txt(r,'Coment. exhibicion')?': '+txt(r,'Coment. exhibicion'):'.'),
+          comos:['Cargar el pedido de POP para este PDV','Instalarlo en la próxima visita']});
+      }
+      if(si(txt(r,'Posibilidad heladera'))){
+        A.push({prio:2, nivel:'PDV', quien:ref, titulo:'Gestionar colocación de heladera',
+          porque:'El PDV tiene lugar para un equipo de frío'+
+                 (txt(r,'Detalle heladera')?': '+txt(r,'Detalle heladera'):'.'),
+          comos:['Elevar la solicitud de EDF','Confirmar el espacio y el punto de luz',
+                 'Acordar el compromiso de exhibición con el comerciante']});
+      }
+      if(si(txt(r,'Espacio ampliar exhibicion'))){
+        A.push({prio:3, nivel:'PDV', quien:ref, titulo:'Ampliar exhibición',
+          porque:'Hay espacio disponible'+(txt(r,'Detalle espacio')?': '+txt(r,'Detalle espacio'):'.'),
+          comos:['Negociar el espacio adicional','Cargar el material de exhibición necesario']});
+      }
+      if(txt(r,'Potencial nuevos productos')){
+        A.push({prio:3, nivel:'PDV', quien:ref, titulo:'Incorporar productos al portafolio',
+          porque:'Se detectó potencial: '+txt(r,'Potencial nuevos productos'),
+          comos:['Incluir los SKU en el próximo pedido','Verificar la reposición a los 15 días']});
+      }
+      // focos ausentes
+      var falt=[];
+      for(var k=0;k<FOCOS.length;k++){
+        var v=txt(r,FOCOS[k][0]);
+        if(v && !si(v)) falt.push(FOCOS[k][1]);
+      }
+      if(falt.length>=3){
+        A.push({prio:2, nivel:'PDV', quien:ref, titulo:'Recuperar focos ausentes',
+          porque:'Faltan '+falt.length+' de los 6 focos: '+falt.join(', ')+'.',
+          comos:['Incluir los focos faltantes en el próximo pedido',
+                 'Verificar que haya espacio en frío y en góndola']});
+      }
+      // score bajo
+      var sc=score(r);
+      if(sc!==null && sc<50){
+        A.push({prio:1, nivel:'PDV', quien:ref, titulo:'Plan de recuperación del PDV',
+          porque:'Programa de Mercado en '+sc+'%, por debajo del mínimo.',
+          comos:['Armar visita conjunta con el vendedor',
+                 'Definir los dos criterios más fáciles de recuperar primero',
+                 'Volver a medir en la próxima visita']});
+      }
+      // comentarios sin acción asociada
+      var pend=txt(r,'Acciones a realizar');
+      if(pend){
+        A.push({prio:2, nivel:'PDV', quien:ref, titulo:'Acción comprometida en la visita',
+          porque:'Quedó registrado en el relevamiento: '+pend,
+          comos:['Verificar cumplimiento en la próxima visita']});
+      }
+      var quej=txt(r,'Comentarios del comerciante');
+      if(quej){
+        A.push({prio:3, nivel:'PDV', quien:ref, titulo:'Responder al comerciante',
+          porque:'Planteo del cliente: '+quej,
+          comos:['Dar respuesta o derivar al área que corresponda',
+                 'Comunicar la respuesta en la próxima visita']});
+      }
+    }
+
+    /* ---------- nivel vendedor y territorio ---------- */
+    var porVend={}, totalEval={}, totalFail={};
+    for(var i2=0;i2<F.length;i2++){
+      var rr=F[i2], vv=txt(rr,'Cod Vendedor')||'(sin vendedor)';
+      porVend[vv]=porVend[vv]||{n:0, fallas:{}};
+      porVend[vv].n++;
+      var crit=PM.concat(FOCOS);
+      for(var c=0;c<crit.length;c++){
+        var col=crit[c][0], nom=crit[c][1], val=txt(rr,col);
+        if(!val) continue;
+        totalEval[nom]=(totalEval[nom]||0)+1;
+        if(!si(val)){
+          totalFail[nom]=(totalFail[nom]||0)+1;
+          porVend[vv].fallas[nom]=(porVend[vv].fallas[nom]||0)+1;
+        }
+      }
+    }
+    for(var nom2 in totalEval){
+      var ev=totalEval[nom2], fa=totalFail[nom2]||0;
+      if(ev>=4 && fa/ev>=0.6){
+        A.push({prio:1, nivel:'Territorio', quien:'Todo el territorio',
+          titulo:'Falla generalizada: '+nom2,
+          porque:'Incumple en '+fa+' de '+ev+' PDV relevados ('+Math.round(fa/ev*100)+'%). No es un problema de un vendedor puntual.',
+          comos:['Revisar si el criterio es alcanzable con el material disponible',
+                 'Bajar el foco en la reunión de equipo',
+                 'Definir un plazo de recuperación y volver a medir']});
+      }
+    }
+    for(var vd in porVend){
+      var info=porVend[vd];
+      if(info.n<3) continue;
+      for(var f2 in info.fallas){
+        var pct=info.fallas[f2]/info.n;
+        var pctTerr = totalEval[f2] ? (totalFail[f2]||0)/totalEval[f2] : 0;
+        if(pct>=0.6 && pctTerr<0.6){
+          A.push({prio:2, nivel:'Vendedor', quien:vd,
+            titulo:'Trabajar '+f2+' con '+vd,
+            porque:'Falla en '+info.fallas[f2]+' de sus '+info.n+' PDV, muy por encima del promedio del territorio.',
+            comos:['Repasar el criterio en la reunión semanal',
+                   'Acompañar una visita para mostrar la ejecución esperada']});
+        }
+      }
+    }
+
+    if(!A.length){
+      return sec('Acciones sugeridas','Sin desvíos que requieran acción',
+        '<div class="vacio-todo">No se detectaron problemas ni oportunidades en el período filtrado.</div>');
+    }
+
+    /* ---------- agrupar PDV repetidos por acción ---------- */
+    var agrup={};
+    for(var a=0;a<A.length;a++){
+      var x=A[a], key=x.nivel+'|'+x.titulo;
+      if(x.nivel==='PDV'){
+        if(!agrup[key]) { agrup[key]={prio:x.prio, nivel:x.nivel, titulo:x.titulo, comos:x.comos, casos:[]}; }
+        agrup[key].casos.push({quien:x.quien, porque:x.porque});
+        agrup[key].prio=Math.min(agrup[key].prio,x.prio);
+      } else {
+        agrup[key+'|'+x.quien]={prio:x.prio, nivel:x.nivel, titulo:x.titulo, comos:x.comos,
+                                casos:[{quien:x.quien, porque:x.porque}]};
+      }
+    }
+    var lista=[];
+    for(var g in agrup) lista.push(agrup[g]);
+    lista.sort(function(a,b){
+      if(a.prio!==b.prio) return a.prio-b.prio;
+      return b.casos.length-a.casos.length;
+    });
+
+    var urg=lista.filter(function(x){return x.prio===1}).length;
+    var html='';
+    for(var q=0;q<lista.length;q++){
+      var x=lista[q];
+      var cls = x.prio===1?'r':(x.prio===2?'a':'g');
+      var etiqueta = x.prio===1?'URGENTE':(x.prio===2?'IMPORTANTE':'OPORTUNIDAD');
+      html+='<div class="acc '+cls+'">'+
+        '<div class="acc-h"><span class="tag">'+etiqueta+'</span>'+
+        '<span class="niv">'+esc(x.nivel)+'</span>'+
+        '<span class="cnt">'+x.casos.length+(x.casos.length===1?' caso':' casos')+'</span></div>'+
+        '<div class="acc-t">'+esc(x.titulo)+'</div>'+
+        '<ul class="comos">'+x.comos.map(function(c){ return '<li>'+esc(c)+'</li>'; }).join('')+'</ul>'+
+        '<details><summary>Ver el detalle de cada caso</summary><div class="casos">'+
+        x.casos.slice(0,25).map(function(c){
+          return '<div class="caso"><b>'+esc(c.quien)+'</b> '+esc(c.porque)+'</div>';
+        }).join('')+
+        (x.casos.length>25?'<div class="caso mini">y '+(x.casos.length-25)+' más</div>':'')+
+        '</div></details></div>';
+    }
+    return sec('Acciones sugeridas',
+      lista.length+' acciones · '+urg+' urgentes',
+      '<div class="accs">'+html+'</div>');
   }
 
   function sec(titulo, sub, contenido){
