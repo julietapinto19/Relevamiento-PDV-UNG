@@ -112,6 +112,22 @@
   .caso:last-child{border-bottom:none}
   .caso b{font-family:var(--mono);color:var(--ink);font-weight:600;margin-right:6px}
 
+  .por-pdv{padding:0}
+  .grupo-pdv{border-bottom:1px solid var(--line)}
+  .grupo-pdv:last-child{border-bottom:none}
+  .gp-h{display:flex;align-items:baseline;gap:11px;padding:13px 18px 9px;background:#FAFBFB;flex-wrap:wrap}
+  .gp-t{font-family:var(--mono);font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .gp-s{font-size:11.5px;color:var(--steel)}
+  .gp-n{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--steel)}
+  .gp-n.urg{color:var(--red);font-weight:600}
+  .gp-a{padding:11px 18px 11px 21px;border-top:1px solid var(--paper);border-left:3px solid transparent}
+  .gp-a.r{border-left-color:var(--red)}
+  .gp-a.a{border-left-color:var(--amber)}
+  .gp-a.g{border-left-color:var(--green)}
+  .gp-at{font-size:14px;font-weight:600;letter-spacing:-.01em;margin-bottom:3px}
+  .gp-ap{font-size:12px;color:var(--steel);line-height:1.45;margin-bottom:5px}
+  .gp-a .comos li{font-size:12px;padding:2px 0 2px 15px}
+
   .filtro-urg{display:flex;gap:7px;padding:12px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap;background:#FAFBFB}
   .fu{font-family:var(--mono);font-size:10.5px;background:var(--card);border:1px solid var(--line);color:var(--steel);padding:6px 11px;letter-spacing:.04em}
   .fu.on{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:600}
@@ -181,6 +197,7 @@
       <div class="f"><label for="f-hasta">Hasta</label><input type="date" id="f-hasta"></div>
       <div class="f"><label for="f-vend">Vendedor</label><select id="f-vend"></select></div>
       <div class="f"><label for="f-frec">Frecuencia</label><select id="f-frec"></select></div>
+      <div class="f"><label for="f-pdv">PDV</label><select id="f-pdv"></select></div>
       <div class="f"><label for="f-quien">Relevado por</label><select id="f-quien"></select></div>
       <div class="f"><button class="rst" id="f-reset">Limpiar</button></div>
     </div>
@@ -193,7 +210,7 @@
   var $ = function(i){ return document.getElementById(i); };
   var KEY='relevamiento_dash_url';
   var COLS=[], FILAS=[], IDX={};
-  var TAB='resumen', URG='todas';
+  var TAB='resumen', URG='todas', VISTA='pdv';
 
   var PM_SCORE = [
     ['PM 60% Facing Gatorade','60% Facing share Gatorade'],
@@ -275,18 +292,21 @@
 
   /* ================= filtros ================= */
   function llenarFiltros(){
-    var vs={}, fs={}, qs={};
+    var vs={}, fs={}, qs={}, ps={};
     for(var i=0;i<FILAS.length;i++){
-      var v=cel(FILAS[i],'Cod Vendedor'), f=cel(FILAS[i],'Frecuencia'), q=cel(FILAS[i],'Relevado por');
-      if(v) vs[v]=1; if(f) fs[f]=1; if(q) qs[q]=1;
+      var v=cel(FILAS[i],'Cod Vendedor'), f=cel(FILAS[i],'Frecuencia'),
+          q=cel(FILAS[i],'Relevado por'), p=cel(FILAS[i],'Cod PDV');
+      if(v) vs[v]=1; if(f) fs[f]=1; if(q) qs[q]=1; if(p) ps[p]=1;
     }
     opciones($('f-vend'),'Todos',Object.keys(vs).sort());
     opciones($('f-frec'),'Todas',Object.keys(fs).sort());
     opciones($('f-quien'),'Todos',Object.keys(qs).sort());
-    ['f-desde','f-hasta','f-vend','f-frec','f-quien'].forEach(function(id){ $(id).onchange=pintar; });
+    opciones($('f-pdv'),'Todos',Object.keys(ps).sort());
+    ['f-desde','f-hasta','f-vend','f-frec','f-quien','f-pdv'].forEach(function(id){ $(id).onchange=pintar; });
     $('f-reset').onclick=function(){
       ['f-desde','f-hasta'].forEach(function(id){ $(id).value=''; });
-      $('f-vend').selectedIndex=0; $('f-frec').selectedIndex=0; $('f-quien').selectedIndex=0; pintar();
+      $('f-vend').selectedIndex=0; $('f-frec').selectedIndex=0;
+      $('f-quien').selectedIndex=0; $('f-pdv').selectedIndex=0; pintar();
     };
   }
   function opciones(sel,todos,arr){
@@ -295,7 +315,7 @@
   }
   function filtradas(){
     var d=$('f-desde').value, h=$('f-hasta').value,
-        v=$('f-vend').value, f=$('f-frec').value, q=$('f-quien').value;
+        v=$('f-vend').value, f=$('f-frec').value, q=$('f-quien').value, pv=$('f-pdv').value;
     return FILAS.filter(function(r){
       var fe=String(cel(r,'Fecha')||'').slice(0,10);
       if(d && fe<d) return false;
@@ -303,6 +323,7 @@
       if(v && cel(r,'Cod Vendedor')!==v) return false;
       if(f && cel(r,'Frecuencia')!==f) return false;
       if(q && cel(r,'Relevado por')!==q) return false;
+      if(pv && String(cel(r,'Cod PDV'))!==pv) return false;
       return true;
     });
   }
@@ -346,7 +367,7 @@
     }
 
     if(TAB==='resumen'){ $('cuerpo').innerHTML = tabResumen(F, A); engancharResumen(A); }
-    else if(TAB==='acciones'){ $('cuerpo').innerHTML = tabAcciones(A); engancharUrgencia(); }
+    else if(TAB==='acciones'){ $('cuerpo').innerHTML = tabAcciones(A); engancharUrgencia(A); }
     else if(TAB==='ejecucion') $('cuerpo').innerHTML = tabEjecucion(F);
     else if(TAB==='precios') $('cuerpo').innerHTML = tabPrecios(F);
     else $('cuerpo').innerHTML = tabEquipo(F);
@@ -442,18 +463,137 @@
     for(var k=0;k<A.length;k++){
       if(URG==='todas' || String(A[k].prio)===URG) lista.push(A[k]);
     }
-    return sec('Acciones sugeridas', A.length+' en total',
-      '<div class="filtro-urg">'+filtros.map(function(f){
+
+    var barra='<div class="filtro-urg">'+
+      '<button class="fu'+(VISTA==='pdv'?' on':'')+'" data-v="pdv">Por PDV</button>'+
+      '<button class="fu'+(VISTA==='accion'?' on':'')+'" data-v="accion">Por acción</button>'+
+      '<span style="width:14px"></span>'+
+      filtros.map(function(f){
         return '<button class="fu'+(URG===f[0]?' on':'')+'" data-u="'+f[0]+'">'+f[1]+'</button>';
-      }).join('')+'</div>'+
-      '<div class="accs">'+(lista.length?lista.map(tarjetaAccion).join(''):
-        '<div class="vacio">Nada en esta categoría.</div>')+'</div>');
+      }).join('')+
+      '<button class="fu" id="btn-copiar" style="margin-left:auto">Copiar para WhatsApp</button>'+
+      '</div>';
+
+    if(VISTA==='accion'){
+      return sec('Acciones sugeridas', A.length+' en total',
+        barra+'<div class="accs">'+(lista.length?lista.map(tarjetaAccion).join(''):
+          '<div class="vacio">Nada en esta categoría.</div>')+'</div>');
+    }
+
+    /* --- agrupado por PDV: lo que hay que hacer en cada local --- */
+    var porPDV={};
+    for(var a=0;a<lista.length;a++){
+      var x=lista[a];
+      if(x.nivel!=='PDV'){
+        var kg='__'+x.nivel;
+        porPDV[kg]=porPDV[kg]||{pdv:x.quien, vend:'', fecha:'', nivel:x.nivel, acc:[]};
+        porPDV[kg].acc.push({prio:x.prio, titulo:x.titulo, porque:x.casos[0].porque, comos:x.comos});
+        continue;
+      }
+      for(var c=0;c<x.casos.length;c++){
+        var m=x.casos[c].meta||{};
+        var key=m.pdv||x.casos[c].quien;
+        porPDV[key]=porPDV[key]||{pdv:m.pdv||key, vend:m.vend||'', fecha:m.fecha||'', nivel:'PDV', acc:[]};
+        if(m.fecha>porPDV[key].fecha) porPDV[key].fecha=m.fecha;
+        porPDV[key].acc.push({prio:x.prio, titulo:x.titulo, porque:x.casos[c].porque, comos:x.comos});
+      }
+    }
+    var grupos=[];
+    for(var g in porPDV){
+      var o=porPDV[g];
+      o.acc.sort(function(p,q){ return p.prio-q.prio; });
+      o.urg=0;
+      for(var u=0;u<o.acc.length;u++) if(o.acc[u].prio===1) o.urg++;
+      grupos.push(o);
+    }
+    grupos.sort(function(p,q){
+      if(p.nivel!==q.nivel) return p.nivel==='PDV'?-1:1;
+      if(q.urg!==p.urg) return q.urg-p.urg;
+      return q.acc.length-p.acc.length;
+    });
+
+    var html='';
+    for(var i2=0;i2<grupos.length;i2++){
+      var G=grupos[i2];
+      var titulo = G.nivel==='PDV' ? 'PDV '+esc(G.pdv) : esc(G.pdv);
+      var sub = G.nivel==='PDV'
+        ? (G.vend?esc(G.vend):'')+(G.fecha?' · última visita '+esc(G.fecha):'')
+        : G.nivel;
+      html+='<div class="grupo-pdv">'+
+        '<div class="gp-h"><span class="gp-t">'+titulo+'</span>'+
+        '<span class="gp-s">'+sub+'</span>'+
+        '<span class="gp-n'+(G.urg?' urg':'')+'">'+G.acc.length+
+          (G.acc.length===1?' acción':' acciones')+(G.urg?' · '+G.urg+' urgente'+(G.urg>1?'s':''):'')+'</span></div>';
+      for(var j=0;j<G.acc.length;j++){
+        var ac=G.acc[j];
+        var cls = ac.prio===1?'r':(ac.prio===2?'a':'g');
+        html+='<div class="gp-a '+cls+'">'+
+          '<div class="gp-at">'+esc(ac.titulo)+'</div>'+
+          '<div class="gp-ap">'+esc(ac.porque)+'</div>'+
+          '<ul class="comos">'+ac.comos.slice(0,2).map(function(c){ return '<li>'+esc(c)+'</li>'; }).join('')+'</ul>'+
+          '</div>';
+      }
+      html+='</div>';
+    }
+    var cuantosPDV=0;
+    for(var z=0;z<grupos.length;z++) if(grupos[z].nivel==='PDV') cuantosPDV++;
+    return sec('Acciones por punto de venta',
+      cuantosPDV+' PDV con acciones pendientes',
+      barra+'<div class="por-pdv">'+(html||'<div class="vacio">Nada en esta categoría.</div>')+'</div>');
   }
-  function engancharUrgencia(){
+
+  /** arma el texto plano para mandarle al vendedor */
+  function textoAcciones(A){
+    var out=[], v=$('f-vend').value, p=$('f-pdv').value;
+    out.push('ACCIONES PENDIENTES — REL Territorio UNG');
+    if(v) out.push('Vendedor: '+v);
+    if(p) out.push('PDV: '+p);
+    var d=$('f-desde').value, h=$('f-hasta').value;
+    if(d||h) out.push('Período: '+(d||'inicio')+' a '+(h||'hoy'));
+    out.push('');
+    var porPDV={};
+    for(var a=0;a<A.length;a++){
+      var x=A[a];
+      if(URG!=='todas' && String(x.prio)!==URG) continue;
+      if(x.nivel!=='PDV') continue;
+      for(var c=0;c<x.casos.length;c++){
+        var m=x.casos[c].meta||{};
+        var key=m.pdv||x.casos[c].quien;
+        porPDV[key]=porPDV[key]||{vend:m.vend||'', acc:[]};
+        porPDV[key].acc.push({prio:x.prio, titulo:x.titulo, porque:x.casos[c].porque});
+      }
+    }
+    for(var k in porPDV){
+      porPDV[k].acc.sort(function(p1,p2){ return p1.prio-p2.prio; });
+      out.push('PDV '+k+(porPDV[k].vend?' ('+porPDV[k].vend+')':''));
+      for(var i=0;i<porPDV[k].acc.length;i++){
+        var ac=porPDV[k].acc[i];
+        var et = ac.prio===1?'[URGENTE] ':(ac.prio===2?'[IMPORTANTE] ':'[OPORTUNIDAD] ');
+        out.push('  ' + et + ac.titulo);
+        out.push('     ' + ac.porque);
+      }
+      out.push('');
+    }
+    return out.join('\n');
+  }
+  function engancharUrgencia(A){
     var bs=document.querySelectorAll('[data-u]');
     for(var i=0;i<bs.length;i++){
       bs[i].onclick=(function(b){ return function(){ URG=b.getAttribute('data-u'); pintar(); };})(bs[i]);
     }
+    var vs=document.querySelectorAll('[data-v]');
+    for(var k=0;k<vs.length;k++){
+      vs[k].onclick=(function(b){ return function(){ VISTA=b.getAttribute('data-v'); pintar(); };})(vs[k]);
+    }
+    var cp=$('btn-copiar');
+    if(cp) cp.onclick=function(){
+      var t=textoAcciones(A);
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(t).then(function(){
+          cp.textContent='Copiado'; setTimeout(function(){ cp.textContent='Copiar para WhatsApp'; },1800);
+        })['catch'](function(){ prompt('Copiá el texto:', t); });
+      } else prompt('Copiá el texto:', t);
+    };
   }
   function tarjetaAccion(x){
     var cls = x.prio===1?'r':(x.prio===2?'a':'g');
@@ -690,10 +830,12 @@
     var A=[];
     for(var i=0;i<F.length;i++){
       var r=F[i], pdv=txt(r,'Cod PDV'), vend=txt(r,'Cod Vendedor');
+      var fech=String(cel(r,'Fecha')||'').slice(0,10);
       var ref=pdv+(vend?' · '+vend:'');
+      var meta={pdv:pdv, vend:vend, fecha:fech};
 
       if(si(txt(r,'Productos vencidos'))){
-        A.push({prio:1, nivel:'PDV', quien:ref, titulo:'Retirar producto vencido',
+        A.push({meta:meta, prio:1, nivel:'PDV', quien:ref, titulo:'Retirar producto vencido',
           porque:'Producto vencido o próximo a vencer'+(txt(r,'Detalle vencidos')?': '+txt(r,'Detalle vencidos'):'.'),
           comos:['Retirar de góndola y heladera en la próxima visita',
                  'Registrar el canje con el comerciante',
@@ -701,7 +843,7 @@
       }
       var pg=txt(r,'Planograma Gondola');
       if(pg==='No'||pg==='Parcial'){
-        A.push({prio: pg==='No'?1:2, nivel:'PDV', quien:ref, titulo:'Reordenar góndola según planograma',
+        A.push({meta:meta, prio: pg==='No'?1:2, nivel:'PDV', quien:ref, titulo:'Reordenar góndola según planograma',
           porque:'Cumplimiento '+(pg==='No'?'nulo':'parcial')+' en góndola'+
                  (txt(r,'Coment. planograma gondola')?': '+txt(r,'Coment. planograma gondola'):'.'),
           comos:['Rearmar el bloque en la próxima visita del vendedor',
@@ -710,7 +852,7 @@
       }
       var pe=txt(r,'Planograma EDF');
       if(pe==='No'||pe==='Parcial'){
-        A.push({prio: pe==='No'?1:2, nivel:'PDV', quien:ref, titulo:'Reordenar el frío según planograma',
+        A.push({meta:meta, prio: pe==='No'?1:2, nivel:'PDV', quien:ref, titulo:'Reordenar el frío según planograma',
           porque:'Cumplimiento '+(pe==='No'?'nulo':'parcial')+' en EDF'+
                  (txt(r,'Coment. planograma EDF')?': '+txt(r,'Coment. planograma EDF'):'.'),
           comos:['Rearmar la heladera respetando el planograma',
@@ -718,24 +860,24 @@
       }
       var pop=txt(r,'Estado material POP');
       if(pop==='Malo'||pop==='Regular'){
-        A.push({prio: pop==='Malo'?2:3, nivel:'PDV', quien:ref, titulo:'Reponer material POP',
+        A.push({meta:meta, prio: pop==='Malo'?2:3, nivel:'PDV', quien:ref, titulo:'Reponer material POP',
           porque:'Material POP en estado '+pop.toLowerCase()+
                  (txt(r,'Coment. exhibicion')?': '+txt(r,'Coment. exhibicion'):'.'),
           comos:['Cargar el pedido de POP para este PDV','Instalarlo en la próxima visita']});
       }
       if(si(txt(r,'Posibilidad heladera'))){
-        A.push({prio:2, nivel:'PDV', quien:ref, titulo:'Gestionar colocación de heladera',
+        A.push({meta:meta, prio:2, nivel:'PDV', quien:ref, titulo:'Gestionar colocación de heladera',
           porque:'Hay lugar para un equipo de frío'+(txt(r,'Detalle heladera')?': '+txt(r,'Detalle heladera'):'.'),
           comos:['Elevar la solicitud de EDF','Confirmar el espacio y el punto de luz',
                  'Acordar el compromiso de exhibición con el comerciante']});
       }
       if(si(txt(r,'Espacio ampliar exhibicion'))){
-        A.push({prio:3, nivel:'PDV', quien:ref, titulo:'Ampliar exhibición',
+        A.push({meta:meta, prio:3, nivel:'PDV', quien:ref, titulo:'Ampliar exhibición',
           porque:'Hay espacio disponible'+(txt(r,'Detalle espacio')?': '+txt(r,'Detalle espacio'):'.'),
           comos:['Negociar el espacio adicional','Cargar el material de exhibición necesario']});
       }
       if(txt(r,'Ejecucion competencia')){
-        A.push({prio:2, nivel:'PDV', quien:ref, titulo:'Responder a la ejecución de la competencia',
+        A.push({meta:meta, prio:2, nivel:'PDV', quien:ref, titulo:'Responder a la ejecución de la competencia',
           porque:txt(r,'Ejecucion competencia'),
           comos:['Evaluar una contra-ejecución en el mismo espacio',
                  'Informar al área comercial si se repite en la zona']});
@@ -746,14 +888,14 @@
         if(v && !si(v)) falt.push(FOCOS[k][1]);
       }
       if(falt.length>=3){
-        A.push({prio:2, nivel:'PDV', quien:ref, titulo:'Recuperar focos ausentes',
+        A.push({meta:meta, prio:2, nivel:'PDV', quien:ref, titulo:'Recuperar focos ausentes',
           porque:'Faltan '+falt.length+' de '+FOCOS.length+' focos: '+falt.join(', ')+'.',
           comos:['Incluir los focos faltantes en el próximo pedido',
                  'Verificar que haya espacio en frío y en góndola']});
       }
       var sc=score(r);
       if(sc!==null && sc<50){
-        A.push({prio:1, nivel:'PDV', quien:ref, titulo:'Plan de recuperación del PDV',
+        A.push({meta:meta, prio:1, nivel:'PDV', quien:ref, titulo:'Plan de recuperación del PDV',
           porque:'Programa de Mercado en '+sc+'%, por debajo del mínimo.',
           comos:['Armar visita conjunta con el vendedor',
                  'Definir los dos criterios más fáciles de recuperar primero',
@@ -761,12 +903,12 @@
       }
       var prob=txt(r,'Problemas detectados');
       if(prob){
-        A.push({prio:2, nivel:'PDV', quien:ref, titulo:'Resolver problema detectado en la visita',
+        A.push({meta:meta, prio:2, nivel:'PDV', quien:ref, titulo:'Resolver problema detectado en la visita',
           porque:prob, comos:['Verificar la resolución en la próxima visita']});
       }
       var quej=txt(r,'Comentarios del comerciante');
       if(quej){
-        A.push({prio:3, nivel:'PDV', quien:ref, titulo:'Responder al comerciante',
+        A.push({meta:meta, prio:3, nivel:'PDV', quien:ref, titulo:'Responder al comerciante',
           porque:quej,
           comos:['Dar respuesta o derivar al área que corresponda',
                  'Comunicar la respuesta en la próxima visita']});
@@ -821,7 +963,7 @@
       var x=A[a], key=x.nivel+'|'+x.titulo;
       if(x.nivel==='PDV'){
         if(!agrup[key]) agrup[key]={prio:x.prio, nivel:x.nivel, titulo:x.titulo, comos:x.comos, casos:[]};
-        agrup[key].casos.push({quien:x.quien, porque:x.porque});
+        agrup[key].casos.push({quien:x.quien, porque:x.porque, meta:x.meta});
         agrup[key].prio=Math.min(agrup[key].prio,x.prio);
       } else {
         agrup[key+'|'+x.quien]={prio:x.prio, nivel:x.nivel, titulo:x.titulo, comos:x.comos,
