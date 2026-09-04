@@ -112,6 +112,9 @@
   .caso:last-child{border-bottom:none}
   .caso b{font-family:var(--mono);color:var(--ink);font-weight:600;margin-right:6px}
 
+  .list-precio .caso{border-bottom:1px solid var(--paper);padding:5px 0;font-size:12px;color:var(--steel)}
+  .list-precio .caso b{font-family:var(--mono);color:var(--ink);font-weight:600;margin-right:6px}
+
   /* ---- tablas ---- */
   table{width:100%;border-collapse:collapse;font-size:12.5px}
   th{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--steel);
@@ -191,18 +194,31 @@
   var COLS=[], FILAS=[], IDX={};
 
   /* ---- criterios que analizamos ---- */
-  var PM = [
+  // Los cinco primeros son los que puntúan para el score.
+  var PM_SCORE = [
     ['PM 60% Facing Gatorade','60% Facing share Gatorade'],
     ['PM EDF espejo CCX','EDF espejo CCX'],
     ['PM 35% FS Gondola','35% FS Góndola'],
     ['PM 1 puntera','1 puntera'],
-    ['PM 2 exhibiciones','2 exhibiciones'],
+    ['PM 2 exhibiciones','2 exhibiciones']
+  ];
+  // Se relevan pero no cuentan para el score.
+  var PM_EXTRA = [
     ['PM 30% FS Aguas','30% FS Aguas'],
     ['PM 30% FS Saborizadas','30% FS Saborizadas']
   ];
+  var PM = PM_SCORE.concat(PM_EXTRA);
   var FOCOS = [
-    ['Foco 3L','3L'], ['Foco 2L','2L'], ['Foco Still','Still'],
-    ['Foco Individuales','Individuales'], ['Foco Combos','Combos'], ['Foco GTD Zero','GTD Zero']
+    ['Foco 3L','3L'], ['Foco 2L','2L'], ['Foco 1.5L','1.5L'], ['Foco Still','Still'],
+    ['Foco Individuales','Individuales'], ['Foco GTD Zero','GTD Zero']
+  ];
+  // SKU con precio relevado: id de columna, etiqueta, y si es nuestro o de la competencia
+  var PRECIOS = [
+    ['PTC 3L','3L','propio'], ['PTC 2L','2L','propio'], ['PTC 1.5L','1.5L','propio'],
+    ['PTC Still 1.5L','Still 1.5L','propio'], ['PTC Zero','Zero','propio'],
+    ['Precio Manaos 2.25L','Manaos 2.25L','competencia'],
+    ['Precio Placer 1.5L','Placer 1.5L','competencia'],
+    ['Precio CCX 2L RET','CCX 2L RET','competencia']
   ];
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
@@ -300,7 +316,7 @@
         (FILAS.length?'Probá limpiar los filtros.':'La planilla todavía no tiene datos cargados.')+'</div>';
       return;
     }
-    $('cuerpo').innerHTML = kpis(F)+acciones(F)+alertas(F)+oportunidades(F)+indicadores(F)+evolucion(F)+ranking(F);
+    $('cuerpo').innerHTML = kpis(F)+acciones(F)+alertas(F)+precios(F)+oportunidades(F)+indicadores(F)+evolucion(F)+ranking(F);
   }
 
   function score(r){
@@ -317,8 +333,8 @@
     for(var i=0;i<F.length;i++){
       var s=score(F[i]);
       if(s!==null){ sc.push(s); if(s<50) rojo++; }
-      var p=String(cel(F[i],'Respeta PTC')||'').trim();
-      if(p){ ptcEval++; if(si(p)) ptcOk++; }
+      var pg=String(cel(F[i],'Planograma Gondola')||'').trim();
+      if(pg){ ptcEval++; if(si(pg)) ptcOk++; }
     }
     var prom = sc.length ? Math.round(sc.reduce(function(a,b){return a+b},0)/sc.length) : null;
     var pctPtc = ptcEval ? Math.round(ptcOk/ptcEval*100) : null;
@@ -332,7 +348,7 @@
     return '<div class="kpis">'+
       box('Visitas', F.length, Object.keys(pdvs).length+' PDV distintos') +
       box('PM promedio', prom===null?'—':prom+'%', 'Programa de Mercado', prom===null?'':tonoK(prom)) +
-      box('Respeta PTC', pctPtc===null?'—':pctPtc+'%', ptcOk+' de '+ptcEval+' evaluados', pctPtc===null?'':tonoK(pctPtc)) +
+      box('Planograma OK', pctPtc===null?'—':pctPtc+'%', ptcOk+' de '+ptcEval+' en góndola', pctPtc===null?'':tonoK(pctPtc)) +
       box('PDV críticos', rojo, 'con PM por debajo de 50%', rojo?'bad':'ok') +
       box('Vendedores', Object.keys(vend).length, 'con visitas en el período') +
       box('Relevadores', Object.keys(quienes).length, 'cargaron en el período') +
@@ -342,10 +358,11 @@
 
   /* ---- Alertas ---- */
   function alertas(F){
+    var noParcial=function(v){ var x=String(v).trim(); return x==='No'||x==='Parcial'; };
     var defs=[
-      {t:'Productos vencidos o por vencer', col:'Productos vencidos', hit:function(v){ return si(v); }, det:'Detalle vencidos', cls:'r'},
-      {t:'No respeta PTC', col:'Respeta PTC', hit:function(v){ var x=String(v).trim(); return x==='No'||x==='Parcial'; }, det:'Coment. PTC', cls:'r'},
-      {t:'Planograma sin cumplir', col:'Cumplimiento planograma', hit:function(v){ var x=String(v).trim(); return x==='No'||x==='Parcial'; }, det:'Coment. planograma', cls:'a'},
+      {t:'Productos vencidos o por vencer', col:'Productos vencidos', hit:si, det:'Detalle vencidos', cls:'r'},
+      {t:'Planograma góndola sin cumplir', col:'Planograma Gondola', hit:noParcial, det:'Coment. planograma gondola', cls:'r'},
+      {t:'Planograma EDF sin cumplir', col:'Planograma EDF', hit:noParcial, det:'Coment. planograma EDF', cls:'a'},
       {t:'Material POP a reponer', col:'Estado material POP', hit:function(v){ var x=String(v).trim(); return x==='Malo'||x==='Regular'; }, det:'Coment. exhibicion', cls:'a'}
     ];
     var html='';
@@ -379,7 +396,7 @@
     var defs=[
       {t:'Se puede colocar heladera', col:'Posibilidad heladera', det:'Detalle heladera'},
       {t:'Hay espacio para ampliar exhibición', col:'Espacio ampliar exhibicion', det:'Detalle espacio'},
-      {t:'Potencial de nuevos productos', col:'Potencial nuevos productos', libre:true}
+      {t:'Ejecución relevante de la competencia', col:'Ejecucion competencia', libre:true}
     ];
     var html='';
     for(var i=0;i<defs.length;i++){
@@ -487,8 +504,10 @@
       o.n++; o.pdv[cel(F[i],'Cod PDV')]=1;
       var s=score(F[i]); if(s!==null) o.sc.push(s);
       if(si(cel(F[i],'Productos vencidos'))) o.alertas++;
-      var p=String(cel(F[i],'Respeta PTC')||'').trim();
+      var p=String(cel(F[i],'Planograma Gondola')||'').trim();
       if(p==='No'||p==='Parcial') o.alertas++;
+      var pe2=String(cel(F[i],'Planograma EDF')||'').trim();
+      if(pe2==='No'||pe2==='Parcial') o.alertas++;
     }
     var arr=[];
     for(var k in por){
@@ -548,25 +567,24 @@
                  'Registrar el canje con el comerciante',
                  'Revisar la frecuencia de reposición del SKU']});
       }
-      var ptc=txt(r,'Respeta PTC');
-      if(ptc==='No'||ptc==='Parcial'){
-        A.push({prio: ptc==='No'?1:2, nivel:'PDV', quien:ref,
-          titulo: ptc==='No' ? 'Renegociar precio: no respeta PTC' : 'Corregir PTC parcial',
-          porque:'El PDV '+(ptc==='No'?'no respeta':'respeta parcialmente')+' el precio sugerido'+
-                 (txt(r,'Coment. PTC')?'. '+txt(r,'Coment. PTC'):'.'),
-          comos:['Mostrar al comerciante el margen del PTC vs. el precio actual',
-                 'Dejar cartelería de precio en el SKU corregido',
-                 'Verificar el precio en la próxima visita']});
-      }
-      var plano=txt(r,'Cumplimiento planograma');
-      if(plano==='No'||plano==='Parcial'){
-        A.push({prio: plano==='No'?1:2, nivel:'PDV', quien:ref,
-          titulo:'Reordenar según planograma',
-          porque:'Cumplimiento '+(plano==='No'?'nulo':'parcial')+
-                 (txt(r,'Coment. planograma')?': '+txt(r,'Coment. planograma'):'.'),
+      var pg=txt(r,'Planograma Gondola');
+      if(pg==='No'||pg==='Parcial'){
+        A.push({prio: pg==='No'?1:2, nivel:'PDV', quien:ref,
+          titulo:'Reordenar góndola según planograma',
+          porque:'Cumplimiento '+(pg==='No'?'nulo':'parcial')+' en góndola'+
+                 (txt(r,'Coment. planograma gondola')?': '+txt(r,'Coment. planograma gondola'):'.'),
           comos:['Rearmar el bloque en la próxima visita del vendedor',
                  'Sacar foto del antes y el después',
                  'Dejar el planograma impreso en el local']});
+      }
+      var pe=txt(r,'Planograma EDF');
+      if(pe==='No'||pe==='Parcial'){
+        A.push({prio: pe==='No'?1:2, nivel:'PDV', quien:ref,
+          titulo:'Reordenar el frío según planograma',
+          porque:'Cumplimiento '+(pe==='No'?'nulo':'parcial')+' en EDF'+
+                 (txt(r,'Coment. planograma EDF')?': '+txt(r,'Coment. planograma EDF'):'.'),
+          comos:['Rearmar la heladera respetando el planograma',
+                 'Verificar que los focos estén en frío']});
       }
       var pop=txt(r,'Estado material POP');
       if(pop==='Malo'||pop==='Regular'){
@@ -588,10 +606,11 @@
           porque:'Hay espacio disponible'+(txt(r,'Detalle espacio')?': '+txt(r,'Detalle espacio'):'.'),
           comos:['Negociar el espacio adicional','Cargar el material de exhibición necesario']});
       }
-      if(txt(r,'Potencial nuevos productos')){
-        A.push({prio:3, nivel:'PDV', quien:ref, titulo:'Incorporar productos al portafolio',
-          porque:'Se detectó potencial: '+txt(r,'Potencial nuevos productos'),
-          comos:['Incluir los SKU en el próximo pedido','Verificar la reposición a los 15 días']});
+      if(txt(r,'Ejecucion competencia')){
+        A.push({prio:2, nivel:'PDV', quien:ref, titulo:'Responder a la ejecución de la competencia',
+          porque:'Se relevó: '+txt(r,'Ejecucion competencia'),
+          comos:['Evaluar una contra-ejecución en el mismo espacio',
+                 'Informar al área comercial si se repite en la zona']});
       }
       // focos ausentes
       var falt=[];
@@ -615,12 +634,6 @@
                  'Volver a medir en la próxima visita']});
       }
       // comentarios sin acción asociada
-      var pend=txt(r,'Acciones a realizar');
-      if(pend){
-        A.push({prio:2, nivel:'PDV', quien:ref, titulo:'Acción comprometida en la visita',
-          porque:'Quedó registrado en el relevamiento: '+pend,
-          comos:['Verificar cumplimiento en la próxima visita']});
-      }
       var quej=txt(r,'Comentarios del comerciante');
       if(quej){
         A.push({prio:3, nivel:'PDV', quien:ref, titulo:'Responder al comerciante',
@@ -721,6 +734,77 @@
     return sec('Acciones sugeridas',
       lista.length+' acciones · '+urg+' urgentes',
       '<div class="accs">'+html+'</div>');
+  }
+
+  /* ================= PRECIOS =================
+     Sin PTC oficial no se puede decir "respeta o no respeta".
+     Lo que sí se puede: comparar el mismo SKU entre PDV y marcar los que se salen
+     de la media, y mostrar nuestros precios contra los de la competencia. */
+  function precios(F){
+    var datos={};
+    for(var p=0;p<PRECIOS.length;p++){
+      var col=PRECIOS[p][0], vals=[];
+      for(var i=0;i<F.length;i++){
+        var v=cel(F[i],col);
+        if(v==='' || v==null) continue;
+        var n=parseFloat(String(v).replace(',','.'));
+        if(!isNaN(n) && n>0) vals.push({n:n, pdv:cel(F[i],'Cod PDV'), vend:cel(F[i],'Cod Vendedor')});
+      }
+      if(vals.length) datos[col]={label:PRECIOS[p][1], tipo:PRECIOS[p][2], vals:vals};
+    }
+    var claves=Object.keys(datos);
+    if(!claves.length){
+      return sec('Precios relevados','Sin datos de precio en el período',
+        '<div class="vacio-todo">Todavía no hay precios cargados.<br>Aparecen cuando el foco está presente y se releva el PTC.</div>');
+    }
+
+    var filas='', desvios=[];
+    for(var k=0;k<claves.length;k++){
+      var d=datos[claves[k]];
+      var ns=d.vals.map(function(x){return x.n}).sort(function(a,b){return a-b});
+      var prom=ns.reduce(function(a,b){return a+b},0)/ns.length;
+      var min=ns[0], max=ns[ns.length-1];
+      var disp = prom ? Math.round((max-min)/prom*100) : 0;
+      filas+='<tr><td>'+esc(d.label)+
+        '<span class="mini"> · '+(d.tipo==='propio'?'nuestro':'competencia')+'</span></td>'+
+        '<td class="n">'+d.vals.length+'</td>'+
+        '<td class="n">$'+Math.round(prom).toLocaleString('es-AR')+'</td>'+
+        '<td class="n mini">$'+min.toLocaleString('es-AR')+'</td>'+
+        '<td class="n mini">$'+max.toLocaleString('es-AR')+'</td>'+
+        '<td class="n">'+(disp>=25?'<span class="pill r">'+disp+'%</span>':
+                          (disp>=15?'<span class="pill a">'+disp+'%</span>':
+                                    '<span class="pill g">'+disp+'%</span>'))+'</td></tr>';
+      // PDV que se van 15% o más por encima del promedio
+      if(d.vals.length>=3){
+        for(var q=0;q<d.vals.length;q++){
+          var dif=(d.vals[q].n-prom)/prom;
+          if(dif>=0.15) desvios.push({sku:d.label, pdv:d.vals[q].pdv, vend:d.vals[q].vend,
+                                      precio:d.vals[q].n, prom:prom, pct:Math.round(dif*100)});
+        }
+      }
+    }
+    desvios.sort(function(a,b){ return b.pct-a.pct; });
+
+    var html='<table><thead><tr><th>SKU</th><th class="n">PDV</th><th class="n">Promedio</th>'+
+      '<th class="n">Mínimo</th><th class="n">Máximo</th><th class="n">Dispersión</th></tr></thead><tbody>'+
+      filas+'</tbody></table>';
+
+    if(desvios.length){
+      html+='<div style="padding:14px 16px;border-top:1px solid var(--line)">'+
+        '<div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--red);margin-bottom:8px">'+
+        'PDV por encima del promedio</div><div class="list-precio">';
+      for(var w=0;w<Math.min(desvios.length,15);w++){
+        var x=desvios[w];
+        html+='<div class="caso"><b>'+esc(x.pdv)+'</b> '+esc(x.vend)+' · '+esc(x.sku)+
+              ' a $'+x.precio.toLocaleString('es-AR')+
+              ' <span style="color:var(--red);font-weight:600">+'+x.pct+'%</span>'+
+              ' <span class="mini">(promedio $'+Math.round(x.prom).toLocaleString('es-AR')+')</span></div>';
+      }
+      html+='</div></div>';
+    }
+    return sec('Precios relevados',
+      claves.length+' SKU con precio'+(desvios.length?' · '+desvios.length+' desvíos':''),
+      html);
   }
 
   function sec(titulo, sub, contenido){
